@@ -259,9 +259,16 @@ model StatementImport {
   fileName     String   @db.VarChar(255)
   status       String   @db.VarChar(16) // uploaded|processing|needs_review|completed|failed
   error        String?  @db.Text
+  fileHash     String   @default("") @db.VarChar(64) // sha256 of the upload; the file itself is never stored
+  summary      Json?
+  rows         Json?    // pending review rows; cleared once the import is completed (retention)
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
   owner        Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   transactions Transaction[]
+
+  @@index([ownerId, createdAt])
+  @@index([ownerId, accountId, fileHash])
 }
 
 model AuditLog {

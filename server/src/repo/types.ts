@@ -1,4 +1,5 @@
 import type { LedgerTxn } from "../domain/ledger.js";
+import type { ImportRec } from "../statements/types.js";
 
 /** Storage boundary. PrismaRepo (MySQL) is used in production; MemoryRepo only in automated tests. */
 
@@ -101,6 +102,17 @@ export interface Repo {
 
   getCollection<K extends CollectionKey>(ownerId: string, key: K): Promise<Collections[K]>;
   replaceCollection<K extends CollectionKey>(ownerId: string, key: K, items: Collections[K]): Promise<Collections[K]>;
+
+  createImport(ownerId: string, i: Omit<ImportRec, "id" | "createdAt">): Promise<ImportRec>;
+  getImport(ownerId: string, id: string): Promise<ImportRec | null>;
+  listImports(ownerId: string): Promise<ImportRec[]>; // newest first, without rows
+  findImportsByHash(ownerId: string, accountId: string, fileHash: string): Promise<ImportRec[]>;
+  updateImport(ownerId: string, id: string, patch: Partial<Pick<ImportRec, "status" | "error" | "summary" | "rows">>): Promise<ImportRec>;
+  /**
+   * Atomic approval: only if the import is still needs_review, creates the approved transactions (linked to the import),
+   * marks it completed and clears pending rows. Throws ConflictError if already completed, DuplicateRefError on a ref clash.
+   */
+  completeImport(ownerId: string, id: string, txns: TxnInput[], summary: ImportRec["summary"]): Promise<TxnRec[]>;
 
   audit(ownerId: string, action: string, entity: string, entityId?: string | null, detail?: unknown, ip?: string): Promise<void>;
 }
