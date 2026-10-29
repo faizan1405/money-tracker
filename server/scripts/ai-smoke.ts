@@ -2,7 +2,7 @@
  * Live OpenRouter smoke test with FICTIONAL Indian bank lines. Never prints the key, prompts or raw responses.
  * Run: npm run ai:smoke   (needs OPENROUTER_API_KEY in server/.env or the environment)
  */
-import "dotenv/config";
+import { z } from "zod";
 import { categorizeWithAi, type CategorizeInput } from "../src/ai/categorize.js";
 import { OpenRouterClient, AiError, type Usage } from "../src/ai/openrouter.js";
 import { maskForAi } from "../src/statements/parse.js";
@@ -45,7 +45,7 @@ async function main() {
       const t = Date.now();
       await client.json({ model, system: "Classify.", user: JSON.stringify(lines), schemaName: "ping",
         jsonSchema: { type: "object", additionalProperties: false, required: ["ok"], properties: { ok: { type: "boolean" } } },
-        validate: (await import("zod")).z.object({ ok: z_bool() }), maxTokens: 400 }, { spentUsd: 0 });
+        validate: z.object({ ok: z.boolean() }), maxTokens: 400 }, { spentUsd: 0 });
       console.log(`privacy+strict-json ${model}: OK (${Date.now() - t} ms)`);
     } catch (e) {
       console.log(`privacy+strict-json ${model}: FAILED ${(e as AiError).code}: ${(e as Error).message}`);
@@ -71,9 +71,7 @@ async function main() {
   for (const u of usages) console.log(`usage model=${u.model} in=${u.promptTokens} out=${u.completionTokens} cost=$${u.costUsd.toFixed(6)} ms=${u.ms}`);
   console.log(`total cost $${usages.reduce((a, u) => a + u.costUsd, 0).toFixed(6)}`);
 }
-function z_bool() { return (globalThis as any).__z.boolean(); }
-
-import("zod").then(({ z }) => { (globalThis as any).__z = z; return main(); }).catch((e) => {
+main().catch((e) => {
   console.error("FAILED:", e instanceof AiError ? `${e.code}: ${e.message}` : (e as Error).message);
   process.exit(1);
 });
