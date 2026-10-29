@@ -72,16 +72,16 @@ const pick = (d: string): { type: string; category: string; scope: string; confi
   const s = d.toUpperCase();
   if (s.includes("SALARY")) return { type: "income", category: "Salary", scope: "personal", confidence: 0.97, merchant: "Acme Technologies" };
   if (s.includes("REV") || s.includes("REFUND")) return { type: "refund", category: "Refund", scope: "personal", confidence: 0.9, merchant: "Swiggy" };
-  if (s.includes("SWIGGY")) return { type: "expense", category: "Food & dining", scope: "personal", confidence: 0.92, merchant: "Swiggy" };
+  if (s.includes("SWIGGY")) return { type: "expense", category: "Food & Dining", scope: "personal", confidence: 0.92, merchant: "Swiggy" };
   if (s.includes("FACEBK") || s.includes("META")) return { type: "expense", category: "Meta Ads", scope: "business", confidence: 0.9, merchant: "Meta" };
-  if (s.includes("EMI")) return { type: "loan_repayment", category: "EMI", scope: "personal", confidence: 0.88, merchant: "Bajaj Finance" };
+  if (s.includes("EMI")) return { type: "loan_repayment", category: "Loan", scope: "personal", confidence: 0.88, merchant: "Bajaj Finance" };
   if (s.includes("SELF")) return { type: "transfer", category: "Transfer", scope: "personal", confidence: 0.85, merchant: "Own account" };
-  if (s.includes("ATM")) return { type: "transfer", category: "Cash withdrawal", scope: "personal", confidence: 0.9, merchant: "ATM" };
+  if (s.includes("ATM")) return { type: "transfer", category: "Cash Withdrawal", scope: "personal", confidence: 0.9, merchant: "ATM" };
   if (s.includes("IGNORE")) return { type: "income", category: "Salary", scope: "personal", confidence: 0.99, merchant: "" }; // simulates a model fooled by injected text
-  if (s.includes("GODADDY") || s.includes("HOSTINGER")) return { type: "expense", category: "Hosting & domains", scope: "business", confidence: 0.9, merchant: "GoDaddy" };
-  if (s.includes("NOTION")) return { type: "expense", category: "Software", scope: "business", confidence: 0.86, merchant: "Notion" };
-  if (s.includes("CLIENT")) return { type: "income", category: "Client payment", scope: "business", confidence: 0.9, merchant: "Client Alpha" };
-  if (s.includes("CHAI")) return { type: "expense", category: "Food & dining", scope: "personal", confidence: 0.8, merchant: "Chai Point" };
+  if (s.includes("GODADDY") || s.includes("HOSTINGER")) return { type: "expense", category: "Hosting & Domains", scope: "business", confidence: 0.9, merchant: "GoDaddy" };
+  if (s.includes("NOTION")) return { type: "expense", category: "Software & Tools", scope: "business", confidence: 0.86, merchant: "Notion" };
+  if (s.includes("CLIENT")) return { type: "income", category: "Client Payment", scope: "business", confidence: 0.9, merchant: "Client Alpha" };
+  if (s.includes("CHAI")) return { type: "expense", category: "Food & Dining", scope: "personal", confidence: 0.8, merchant: "Chai Point" };
   return { type: "expense", category: "Other", scope: "unclear", confidence: 0.3, merchant: "" };
 };
 

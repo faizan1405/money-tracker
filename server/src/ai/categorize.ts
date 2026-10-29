@@ -41,7 +41,7 @@ Rules:
 - Transfers between the user's own accounts (self transfer, own a/c, sweep, FD) → "transfer". Credit-card bill payments → "cc_payment".
 - EMI / loan payments → "loan_repayment" (never split principal/interest). Loan amount received → "loan_disbursement".
 - Reversals, refunds, cashback → "refund". Salary, client payments, interest earned → "income".
-- ATM / cash withdrawals → "transfer" with category "Cash withdrawal".
+- ATM / cash withdrawals → "transfer" with category "Cash Withdrawal".
 - Meta/Facebook ads, Google Ads, hosting, domains, SaaS used for work suggest business scope.
 - If unsure, lower the confidence below 0.6 and say why. Do not guess names you cannot see.`;
 

@@ -21,10 +21,12 @@ interface Deps {
   validate: (ownerId: string, items: TxnInput[]) => Promise<void>;
 }
 
+/** Same names as the app's built-in categories (src/lib/finance/data.ts) plus a few statement-specific ones. */
 export const DEFAULT_CATEGORIES = [
-  "Salary", "Client payment", "Interest", "Refund", "Food & dining", "Groceries", "Shopping", "Fuel", "Travel", "Rent", "Utilities", "Mobile & internet",
-  "Health", "Education", "Entertainment", "Subscriptions", "Software", "Hosting & domains", "Meta Ads", "Google Ads", "Marketing", "Office", "Salaries & contractors",
-  "Bank charges", "Taxes", "Insurance", "Investments", "EMI", "Loan", "Credit card bill", "Cash withdrawal", "Transfer", "Family", "Other",
+  "Food & Dining", "Groceries", "Shopping", "Transport", "Bills & Utilities", "Rent", "Health", "Education", "Entertainment", "Subscriptions",
+  "Meta Ads", "Hosting & Domains", "Software & Tools", "Freelancer Payments", "Salaries", "Marketing", "Client Project Costs", "Office Expenses", "Other Business Expenses",
+  "Client Payment", "Salary", "Freelance", "Business Revenue", "Interest", "Other Income",
+  "Transfer", "Card Payment", "Loan", "Refund", "Cash Withdrawal", "Bank Charges", "Fuel", "Travel", "Insurance", "Investments", "Taxes", "Other",
 ];
 
 const importDto = (i: ImportRec) => ({
