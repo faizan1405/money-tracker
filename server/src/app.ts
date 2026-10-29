@@ -13,6 +13,8 @@ import { toRupees } from "./money.js";
 import type { AccountRec, CollectionKey, Repo, TxnInput } from "./repo/types.js";
 import { OpenRouterClient } from "./ai/openrouter.js";
 import { registerStatementRoutes } from "./statements/routes.js";
+import { registerAssistantRoutes } from "./assistant/routes.js";
+import { dbBudgetGuard } from "./ai/budget.js";
 
 /** `ai`: pass a client (tests use a fake fetch); default builds one from config, or null when no key is set. */
 export interface AppDeps { repo: Repo; config: AppConfig; now?: () => number; loginLimit?: number; ai?: OpenRouterClient | null }
@@ -23,6 +25,7 @@ const owner = (req: Request) => {
 };
 
 export function createApp({ repo, config, now = Date.now, loginLimit = 10, ai = config.ai ? new OpenRouterClient(config.ai) : null }: AppDeps) {
+  if (ai && !ai.guard) ai.guard = dbBudgetGuard(repo, ai.cfg, now); // persistent per-owner limits in MySQL
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", 1); // Hostinger runs Node behind a proxy
@@ -231,8 +234,10 @@ export function createApp({ repo, config, now = Date.now, loginLimit = 10, ai = 
   // ---------- Statement import + AI review ----------
   registerStatementRoutes(app, { repo, config, ai, owner, validate });
 
+  // ---------- AI assistant + insights (read-only over the owner's data) ----------
+  registerAssistantRoutes(app, { repo, config, ai, owner, now });
+
   // ---------- Not yet implemented: explicit errors, never fake success ----------
-  app.post("/api/ai/chat", () => { throw notImplemented("The AI assistant"); });
   app.all(["/api/invoices*", "/api/clients*", "/api/projects*", "/api/reports*"], () => { throw notImplemented("This module"); });
 
   app.use("/api", (_req, _res, next) => next(new HttpError(404, "Not found", "not_found")));

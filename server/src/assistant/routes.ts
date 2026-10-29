@@ -6,7 +6,7 @@ import { istKeys } from "../ai/budget.js";
 import type { AppConfig } from "../config.js";
 import { HttpError, ah } from "../http.js";
 import type { Repo } from "../repo/types.js";
-import { MAX_QUESTION_CHARS, answerQuestion, answerIsGrounded, factsForAi, type QueryContext } from "./engine.js";
+import { MAX_QUESTION_CHARS, answerQuestion, answerIsGrounded, type QueryContext } from "./engine.js";
 import { buildInsights } from "./insights.js";
 import { istToday } from "./periods.js";
 import { loadFinance } from "./queries.js";
@@ -136,5 +136,4 @@ export function registerAssistantRoutes(app: Express, { repo, config, ai, owner,
       throw e;
     }
   }));
-  void factsForAi;
 }
