@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useFinance, useScoped } from "@/lib/finance/store";
 import { toCSV } from "@/lib/finance/calc";
+import { downloadCSV } from "@/lib/finance/download";
 import { formatINR } from "@/lib/finance/format";
 import { BUSINESS_CATEGORIES, INCOME_CATEGORIES, PERSONAL_CATEGORIES, SYSTEM_CATEGORIES } from "@/lib/finance/data";
 import type { TxnType } from "@/lib/finance/types";
@@ -26,15 +27,6 @@ export const Route = createFileRoute("/transactions")({
 });
 
 const ALL_CATS = [...PERSONAL_CATEGORIES, ...BUSINESS_CATEGORIES, ...INCOME_CATEGORIES, ...SYSTEM_CATEGORIES];
-
-export function downloadCSV(name: string, csv: string) {
-  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
-  URL.revokeObjectURL(url);
-}
 
 function Transactions() {
   const { openAdd, accounts, updateTxn, deleteTxns, customCategories } = useFinance();
