@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useFinance } from "@/lib/finance/store";
-import { dedupe } from "@/lib/finance/calc";
+import { dedupe, matchDuplicate } from "@/lib/finance/calc";
 import { buildSampleStatement, BUSINESS_CATEGORIES, INCOME_CATEGORIES, PERSONAL_CATEGORIES, SYSTEM_CATEGORIES, type StatementRow } from "@/lib/finance/data";
 import { formatDate, formatINR } from "@/lib/finance/format";
 import type { Transaction } from "@/lib/finance/types";
@@ -63,21 +63,24 @@ function Studio() {
   const pending = rows.filter((r) => r.state === "pending");
   const approved = rows.filter((r) => r.state === "approved");
 
+  const toTxn = (r: StatementRow): Omit<Transaction, "id"> => {
+    const isTransfer = r.category === "Transfer";
+    const type: Transaction["type"] = isTransfer ? "transfer" : r.category === "Refund" ? "refund" : r.direction === "credit" ? "income" : "expense";
+    return {
+      type, amount: r.amount, merchant: r.merchant, description: r.description, category: r.category === "Refund" ? "Shopping" : r.category,
+      workspace: r.workspace, accountId: r.workspace === "scaleflow" && account === "hdfc" ? "kotak-biz" : account,
+      toAccountId: isTransfer ? (account === "kotak-biz" ? "hdfc" : "kotak-biz") : undefined,
+      date: r.date, status: "cleared", source: "statement", ref: r.ref,
+    };
+  };
+  const ledgerMatch = (r: StatementRow) => matchDuplicate(toTxn(r), f.txns);
+
   const commit = () => {
-    const ts: Omit<Transaction, "id">[] = approved.map((r) => {
-      const isTransfer = r.category === "Transfer";
-      const type: Transaction["type"] = isTransfer ? "transfer" : r.category === "Refund" ? "refund" : r.direction === "credit" ? "income" : "expense";
-      return {
-        type, amount: r.amount, merchant: r.merchant, description: r.description, category: r.category === "Refund" ? "Shopping" : r.category,
-        workspace: r.workspace, accountId: r.workspace === "scaleflow" && account === "hdfc" ? "kotak-biz" : account,
-        toAccountId: isTransfer ? (account === "kotak-biz" ? "hdfc" : "kotak-biz") : undefined,
-        date: r.date, status: "cleared", source: "statement",
-      };
-    });
+    const ts = approved.map(toTxn);
     const { fresh, skipped } = dedupe(ts, f.txns);
     if (fresh.length) f.addTxns(fresh);
-    if (!fresh.length) toast.error("These transactions are already in your ledger — nothing was added");
-    else toast.success(`${fresh.length} sample transactions added${skipped ? ` · ${skipped} duplicates skipped` : ""}`);
+    if (!fresh.length) toast.error("All approved rows were already imported (same bank reference) — nothing was added");
+    else toast.success(`${fresh.length} sample transactions added${skipped ? ` · ${skipped} already imported, skipped` : ""}`);
     setRows([]);
     setStep(-1);
     setSel(new Set());
@@ -108,7 +111,7 @@ function Studio() {
           <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
             <span className="text-muted-foreground">Statement account</span>
             <Select value={account} onValueChange={setAccount}>
-              <SelectTrigger className="w-[240px]"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full max-w-[240px]"><SelectValue /></SelectTrigger>
               <SelectContent>{f.accounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
@@ -155,7 +158,7 @@ function Studio() {
       {rows.length > 0 && (
         <Panel className="mt-4" title="Review suggested transactions" action={<Pill tone="warning">Sample — not from a real statement</Pill>}>
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => setRows((r) => r.map((x) => (x.state === "pending" && !x.duplicateOf && x.confidence >= 0.8 ? { ...x, state: "approved" } : x)))}><CheckCheck className="size-4" />Approve all high-confidence</Button>
+            <Button size="sm" variant="outline" onClick={() => setRows((r) => r.map((x) => (x.state === "pending" && !x.duplicateOf && ledgerMatch(x) === "none" && x.confidence >= 0.8 ? { ...x, state: "approved" } : x)))}><CheckCheck className="size-4" />Approve all high-confidence</Button>
             {sel.size > 0 && (
               <>
                 <Select onValueChange={(c) => { sel.forEach((id) => setRow(id, { category: c })); setSel(new Set()); }}>
@@ -179,8 +182,10 @@ function Studio() {
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="font-medium">{r.merchant}</span>
                     <span className={cn("num text-sm font-semibold", r.direction === "credit" && "text-positive")}>{r.direction === "credit" ? "+" : "−"}{formatINR(r.amount)}</span>
+                    {ledgerMatch(r) === "exact" && <Pill tone="negative"><Copy className="size-3" />Already imported — will be skipped</Pill>}
+                    {ledgerMatch(r) === "possible" && <Pill tone="warning"><Copy className="size-3" />Similar entry in ledger — check</Pill>}
                     {r.duplicateOf && <Pill tone="negative"><Copy className="size-3" />Duplicate?</Pill>}
-                    {r.flag && !r.duplicateOf && <Pill tone="warning"><AlertTriangle className="size-3" />{r.flag}</Pill>}
+                    {r.flag && !r.duplicateOf && ledgerMatch(r) === "none" && <Pill tone="warning"><AlertTriangle className="size-3" />{r.flag}</Pill>}
                   </div>
                   <div className="truncate text-xs text-muted-foreground">{formatDate(r.date)} · {r.description}</div>
                 </div>

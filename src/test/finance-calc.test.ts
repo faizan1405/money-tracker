@@ -37,7 +37,7 @@ describe("finance rules", () => {
   });
 });
 
-import { dedupe, byCategory } from "@/lib/finance/calc";
+import { dedupe, byCategory, matchDuplicate, netOf } from "@/lib/finance/calc";
 
 describe("phase 1.5 regressions", () => {
   it("card refund reduces spending and card balance owed", () => {
@@ -69,11 +69,36 @@ describe("phase 1.5 regressions", () => {
     expect(totals(t).expense).toBe(0);
   });
 
-  it("re-importing the same statement adds nothing", () => {
-    const row = { ...base, type: "expense" as const, amount: 499, merchant: "Swiggy", accountId: "bank" };
-    const ledger: Transaction[] = [{ ...row, id: "a" }];
-    expect(dedupe([row, row], ledger)).toEqual({ fresh: [], skipped: 2 });
+  it("re-importing rows with the same bank reference adds nothing", () => {
+    const row = { ...base, type: "expense" as const, amount: 499, merchant: "Swiggy", accountId: "bank", ref: "UTR1" };
+    expect(dedupe([row], [{ ...row, id: "a" }])).toEqual({ fresh: [], skipped: 1 });
     expect(dedupe([row, row], []).fresh).toHaveLength(1);
+  });
+
+  it("two real payments with same date, merchant and amount but different references are both kept", () => {
+    const a = { ...base, type: "expense" as const, amount: 1999, merchant: "Hostinger", accountId: "bank", ref: "UTR1" };
+    const b = { ...a, ref: "UTR2" };
+    expect(matchDuplicate(b, [a])).toBe("none");
+    expect(dedupe([b], [{ ...a, id: "x" }]).fresh).toHaveLength(1);
+  });
+
+  it("look-alike rows without references are flagged, not discarded", () => {
+    const a = { ...base, type: "expense" as const, amount: 1999, merchant: "Hostinger", accountId: "bank" };
+    expect(matchDuplicate(a, [a])).toBe("possible");
+    expect(dedupe([a], [{ ...a, id: "x" }]).fresh).toHaveLength(1);
+  });
+
+  it("same merchant and amount on a different account is not a duplicate", () => {
+    const a = { ...base, type: "expense" as const, amount: 300, merchant: "Uber", accountId: "bank" };
+    expect(matchDuplicate({ ...a, accountId: "cash" }, [a])).toBe("none");
+  });
+
+  it("editing and deleting recalculate totals", () => {
+    const t: Transaction[] = [{ ...base, id: "1", type: "expense", amount: 1000, accountId: "bank" }, { ...base, id: "2", type: "income", amount: 5000, accountId: "bank" }];
+    const edited = t.map((x) => (x.id === "1" ? { ...x, amount: 1500 } : x));
+    expect(netOf(edited)).toBe(3500);
+    expect(netOf(edited.filter((x) => x.id !== "2"))).toBe(-1500);
+    expect(accountBalance(bank, edited)).toBe(13500);
   });
 
   it("refund-only category never shows negative spending", () => {

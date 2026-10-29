@@ -47,8 +47,8 @@ function Accounts() {
         <div className="surface col-span-2 p-4 lg:col-span-1"><div className="text-xs text-muted-foreground">Net liquid position</div><div className="num mt-2 text-2xl font-semibold">{formatINR(assets + cardDebt)}</div></div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,380px)_1fr]">
-        <div className="space-y-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,380px)_1fr]">
+        <div className="min-w-0 space-y-2">
           {accounts.map((a) => {
             const K = KIND[a.kind];
             const bal = accountBalance(a, f.txns);

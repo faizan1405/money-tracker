@@ -52,6 +52,7 @@ export interface Transaction {
   status: "cleared" | "pending";
   recurring?: boolean | undefined;
   source?: "manual" | "statement" | "demo" | undefined;
+  ref?: string | undefined; // bank/UPI reference id from a statement
 }
 
 export interface Due {

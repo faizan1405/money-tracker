@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useFinance, useScoped } from "@/lib/finance/store";
-import { toCSV } from "@/lib/finance/calc";
+import { netOf, toCSV } from "@/lib/finance/calc";
 import { downloadCSV } from "@/lib/finance/download";
 import { formatINR } from "@/lib/finance/format";
 import { BUSINESS_CATEGORIES, INCOME_CATEGORIES, PERSONAL_CATEGORIES, SYSTEM_CATEGORIES } from "@/lib/finance/data";
-import type { TxnType } from "@/lib/finance/types";
+import type { TxnType, WorkspaceFilter } from "@/lib/finance/types";
 import { EmptyState, PageHeader, Panel, TYPE_LABEL } from "@/components/app/ui-bits";
 import { TxnList } from "@/components/app/TxnList";
 
@@ -29,7 +29,7 @@ export const Route = createFileRoute("/transactions")({
 const ALL_CATS = [...PERSONAL_CATEGORIES, ...BUSINESS_CATEGORIES, ...INCOME_CATEGORIES, ...SYSTEM_CATEGORIES];
 
 function Transactions() {
-  const { openAdd, accounts, updateTxn, deleteTxns, customCategories } = useFinance();
+  const { openAdd, accounts, updateTxn, deleteTxns, customCategories, workspace, setWorkspace } = useFinance();
   const { txns } = useScoped();
   const [q, setQ] = useState("");
   const [type, setType] = useState<"all" | TxnType>("all");
@@ -44,22 +44,37 @@ function Transactions() {
   const [limit, setLimit] = useState(50);
 
   const list = useMemo(() => {
-    const s = q.toLowerCase();
-    return txns.filter((t) =>
-      (!s || `${t.merchant} ${t.description} ${t.category} ${t.notes ?? ""}`.toLowerCase().includes(s)) &&
+    const words = q.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    const fromT = from ? new Date(from + "T00:00:00").getTime() : -Infinity;
+    const toT = to ? new Date(to + "T23:59:59.999").getTime() : Infinity;
+    const lo = min ? Number(min) : -Infinity;
+    const hi = max ? Number(max) : Infinity;
+    return txns.filter((t) => {
+      const hay = `${t.merchant} ${t.description} ${t.category} ${t.subcategory ?? ""} ${t.client ?? ""} ${t.project ?? ""} ${t.notes ?? ""} ${t.amount}`.toLowerCase();
+      const d = new Date(t.date).getTime();
+      return (words.every((w) => hay.includes(w))) &&
       (type === "all" || t.type === type) &&
       (cat === "all" || t.category === cat) &&
       (acc === "all" || t.accountId === acc || t.toAccountId === acc) &&
-      (!from || t.date >= new Date(from).toISOString()) &&
-      (!to || t.date <= new Date(to + "T23:59:59").toISOString()) &&
-      (!min || t.amount >= Number(min)) &&
-      (!max || t.amount <= Number(max)),
-    );
+      d >= fromT && d <= toT && t.amount >= lo && t.amount <= hi;
+    });
   }, [txns, q, type, cat, acc, from, to, min, max]);
 
   const toggle = (id: string) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const clear = () => { setQ(""); setType("all"); setCat("all"); setAcc("all"); setFrom(""); setTo(""); setMin(""); setMax(""); };
-  const active = [type !== "all", cat !== "all", acc !== "all", from, to, min, max].filter(Boolean).length;
+  const clear = () => { setQ(""); setType("all"); setCat("all"); setAcc("all"); setFrom(""); setTo(""); setMin(""); setMax(""); setWorkspace("all"); };
+  const chips: { label: string; off: () => void }[] = [
+    ...(workspace !== "all" ? [{ label: workspace === "personal" ? "Personal" : "Scale Flow", off: () => setWorkspace("all") }] : []),
+    ...(type !== "all" ? [{ label: TYPE_LABEL[type], off: () => setType("all") }] : []),
+    ...(cat !== "all" ? [{ label: cat, off: () => setCat("all") }] : []),
+    ...(acc !== "all" ? [{ label: accounts.find((a) => a.id === acc)?.name ?? acc, off: () => setAcc("all") }] : []),
+    ...(from ? [{ label: `From ${from}`, off: () => setFrom("") }] : []),
+    ...(to ? [{ label: `To ${to}`, off: () => setTo("") }] : []),
+    ...(min ? [{ label: `≥ ₹${min}`, off: () => setMin("") }] : []),
+    ...(max ? [{ label: `≤ ₹${max}`, off: () => setMax("") }] : []),
+    ...(q ? [{ label: `“${q}”`, off: () => setQ("") }] : []),
+  ];
+  const active = chips.length - (q ? 1 : 0);
+  const badRange = min && max && Number(min) > Number(max);
 
   return (
     <>
@@ -80,6 +95,10 @@ function Transactions() {
         </div>
         {showFilters && (
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <Select value={workspace} onValueChange={(v) => setWorkspace(v as WorkspaceFilter)}>
+              <SelectTrigger aria-label="Workspace"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="all">All workspaces</SelectItem><SelectItem value="personal">Personal</SelectItem><SelectItem value="scaleflow">Business: Scale Flow</SelectItem></SelectContent>
+            </Select>
             <Select value={type} onValueChange={(v) => setType(v as typeof type)}>
               <SelectTrigger aria-label="Type"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="all">All types</SelectItem>{(Object.keys(TYPE_LABEL) as TxnType[]).map((t) => <SelectItem key={t} value={t}>{TYPE_LABEL[t]}</SelectItem>)}</SelectContent>
@@ -93,8 +112,20 @@ function Transactions() {
               <SelectContent><SelectItem value="all">All accounts</SelectItem>{accounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
             </Select>
             <div className="flex gap-2"><Input type="date" aria-label="From date" value={from} onChange={(e) => setFrom(e.target.value)} /><Input type="date" aria-label="To date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
-            <div className="flex gap-2"><Input inputMode="numeric" placeholder="Min ₹" value={min} onChange={(e) => setMin(e.target.value)} /><Input inputMode="numeric" placeholder="Max ₹" value={max} onChange={(e) => setMax(e.target.value)} /></div>
+            <div className="flex gap-2"><Input inputMode="numeric" aria-label="Minimum amount" placeholder="Min ₹" value={min} onChange={(e) => setMin(e.target.value.replace(/[^\d.]/g, ""))} /><Input inputMode="numeric" aria-label="Maximum amount" placeholder="Max ₹" value={max} onChange={(e) => setMax(e.target.value.replace(/[^\d.]/g, ""))} /></div>
             <Button variant="ghost" onClick={clear}><X className="size-4" />Clear filters</Button>
+          </div>
+        )}
+
+        {badRange && <p className="mt-2 text-xs text-negative">Minimum amount is higher than maximum — no transactions can match.</p>}
+        {chips.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {chips.map((c) => (
+              <button key={c.label} onClick={c.off} className="inline-flex max-w-full items-center gap-1 rounded-full border bg-secondary px-2.5 py-1 text-xs hover:border-primary" aria-label={`Remove filter ${c.label}`}>
+                <span className="truncate">{c.label}</span><X className="size-3 shrink-0" />
+              </button>
+            ))}
+            <button onClick={clear} className="px-1 text-xs font-medium text-primary hover:underline">Reset all</button>
           </div>
         )}
 
@@ -112,7 +143,7 @@ function Transactions() {
 
         <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
           <button className="font-medium hover:text-foreground" onClick={() => setSel(sel.size === list.length ? new Set() : new Set(list.map((t) => t.id)))}>{sel.size === list.length && list.length ? "Deselect all" : "Select all"}</button>
-          <span className="num">Net shown: {formatINR(list.reduce((s, t) => s + (t.type === "income" ? t.amount : t.type === "expense" ? -t.amount : 0), 0))}</span>
+          <span className="num">Net shown: {formatINR(netOf(list))}</span>
         </div>
 
         {list.length ? (

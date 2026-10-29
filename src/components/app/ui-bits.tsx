@@ -62,7 +62,7 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
 
 export function Panel({ title, action, children, className }: { title?: string; action?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={cn("surface p-4 sm:p-5", className)}>
+    <section className={cn("surface min-w-0 p-4 sm:p-5", className)}>
       {title && (
         <div className="mb-4 flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
@@ -80,7 +80,7 @@ export function StatCard({ label, value, prev, icon: Icon, tone = "neutral", inv
   const ch = prev !== undefined ? pctChange(value, prev) : null;
   const good = ch === null ? null : invert ? ch <= 0 : ch >= 0;
   return (
-    <div className="surface group p-4 transition-shadow hover:shadow-lift">
+    <div className="surface group min-w-0 p-4 transition-shadow hover:shadow-lift">
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-muted-foreground">{label}</span>
         <span className={cn("grid size-8 place-items-center rounded-lg",
