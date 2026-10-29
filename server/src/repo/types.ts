@@ -114,6 +114,24 @@ export interface Repo {
    */
   completeImport(ownerId: string, id: string, txns: TxnInput[], summary: ImportRec["summary"]): Promise<TxnRec[]>;
 
+  // ---------- AI usage (persistent budget) ----------
+  /**
+   * Atomically checks today's and this month's spend (settled cost + outstanding reservations) for the owner and,
+   * if `reserveMicroUsd` still fits under both limits, records a reservation. Concurrent calls are serialised per owner.
+   */
+  reserveAi(ownerId: string, r: AiReserve): Promise<{ ok: true; id: string } | { ok: false; limit: "daily" | "monthly" }>;
+  settleAi(ownerId: string, id: string, s: AiSettle): Promise<void>;
+  aiUsage(ownerId: string, day: string, month: string): Promise<AiUsageSummary>;
+
+  // ---------- Assistant conversations ----------
+  listConversations(ownerId: string): Promise<ConversationRec[]>;
+  getConversation(ownerId: string, id: string): Promise<(ConversationRec & { messages: ChatMessageRec[] }) | null>;
+  createConversation(ownerId: string, title: string): Promise<ConversationRec>;
+  addMessages(ownerId: string, conversationId: string, msgs: Omit<ChatMessageRec, "id" | "createdAt">[]): Promise<ChatMessageRec[]>;
+  deleteConversation(ownerId: string, id: string): Promise<boolean>;
+  /** Deletes conversations last updated before `before` (retention). Returns how many were removed. */
+  purgeConversations(ownerId: string, before: Date): Promise<number>;
+
   audit(ownerId: string, action: string, entity: string, entityId?: string | null, detail?: unknown, ip?: string): Promise<void>;
 }
 
@@ -121,3 +139,9 @@ export const DEFAULT_WORKSPACES: WorkspaceRec[] = [
   { key: "personal", name: "Personal", short: "Personal", kind: "personal" },
   { key: "scaleflow", name: "Business: Scale Flow", short: "Scale Flow", kind: "business" },
 ];
+
+export interface AiReserve { feature: string; model: string; day: string; month: string; reserveMicroUsd: number; dailyLimitMicroUsd: number; monthlyLimitMicroUsd: number }
+export interface AiSettle { status: "settled" | "failed"; model: string; costMicroUsd: number; promptTokens: number; completionTokens: number; ms: number }
+export interface AiUsageSummary { dayMicroUsd: number; monthMicroUsd: number; requestsToday: number; requestsMonth: number; promptTokensMonth: number; completionTokensMonth: number }
+export interface ConversationRec { id: string; title: string; createdAt: string; updatedAt: string }
+export interface ChatMessageRec { id: string; role: "user" | "assistant"; content: string; data?: unknown; createdAt: string }
