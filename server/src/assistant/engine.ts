@@ -170,6 +170,7 @@ export async function answerQuestion(ai: OpenRouterClient, ctx: AiCallCtx, data:
 
   // 3) Explanation, validated. Any failure → plain backend summary (numbers stay correct).
   let text = plainAnswer(facts, lang), suggestions: string[] = [], aiExplained = false;
+  if (facts.metric === "unsupported") return { text, suggestions, facts, context, language: lang, aiExplained, usage }; // fixed reply, no AI call
   try {
     const ex = await ai.json({
       model: ai.cfg.fastModel, system: EXPLAIN_SYSTEM,
