@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { categorizeWithAi, type AiType } from "../ai/categorize.js";
 import { AiError, type OpenRouterClient } from "../ai/openrouter.js";
-import { compareTxn, type DupMatch } from "../domain/ledger.js";
+import type { DupMatch } from "../domain/ledger.js";
 import type { AccountRec, RuleDTO, TxnRec, WorkspaceRec } from "../repo/types.js";
 import { maskForAi, type ParsedStatement } from "./parse.js";
 import type { ImportSummary, Reconciliation, ReviewRow } from "./types.js";
@@ -64,11 +64,11 @@ export async function buildReview(p: ParsedStatement, ctx: PipelineCtx): Promise
   for (const r of rows) {
     let best: DupMatch = "none";
     for (const t of accLedger) {
-      const c = compareTxn({ ...t }, { ...t, date: r.date, amountPaise: r.amountPaise, ref: r.ref ?? null, accountId: t.accountId, merchant: t.merchant });
-      // compareTxn needs a merchant; statement rows only have narration, so look-alikes compare on date+amount+narration.
-      if (r.ref && t.ref) { if (r.ref === t.ref && t.accountId === acc.id) { best = "exact"; r.matchedTransactionId = t.id; break; } continue; }
-      if (c !== "none" && t.date === r.date && t.amountPaise === r.amountPaise && (t.description || t.merchant).toLowerCase().slice(0, 20) === r.description.toLowerCase().slice(0, 20)) { best = "possible"; r.matchedTransactionId = t.id; }
-      else if (t.date === r.date && t.amountPaise === r.amountPaise && !r.ref && !t.ref) { best = best === "none" ? "possible" : best; r.matchedTransactionId ??= t.id; }
+      if (r.ref && t.ref) { // both have bank references: same = already imported, different = never a duplicate
+        if (r.ref === t.ref && t.accountId === acc.id) { best = "exact"; r.matchedTransactionId = t.id; break; }
+        continue;
+      }
+      if (t.date === r.date && t.amountPaise === r.amountPaise && best === "none") { best = "possible"; r.matchedTransactionId = t.id; }
     }
     if (best !== "exact" && r.ref) {
       if (seenRefs.has(r.ref)) { best = "exact"; r.flags.push("Same bank reference appears twice in this file"); }
