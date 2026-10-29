@@ -162,7 +162,7 @@ export function compareTxn(t: Omit<Transaction, "id">, x: Omit<Transaction, "id"
   return same ? "possible" : "none";
 }
 
-export function matchDuplicate(t: Omit<Transaction, "id">, ledger: Omit<Transaction, "id">[]): DupMatch {
+export function matchDuplicate(t: Omit<Transaction, "id">, ledger: (Omit<Transaction, "id"> & { id?: string })[]): DupMatch {
   let best: DupMatch = "none";
   for (const x of ledger) {
     const m = compareTxn(t, x);
@@ -173,7 +173,7 @@ export function matchDuplicate(t: Omit<Transaction, "id">, ledger: Omit<Transact
 }
 
 /** Drops only exact (same reference) re-imports. Possible duplicates are kept: the user already reviewed them. */
-export function dedupe(incoming: Omit<Transaction, "id">[], ledger: Omit<Transaction, "id">[]) {
+export function dedupe(incoming: Omit<Transaction, "id">[], ledger: (Omit<Transaction, "id"> & { id?: string })[]) {
   const fresh: Omit<Transaction, "id">[] = [];
   let skipped = 0;
   for (const t of incoming) {
