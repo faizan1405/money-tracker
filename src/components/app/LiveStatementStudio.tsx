@@ -192,7 +192,7 @@ export function LiveStatementStudio() {
                   </div>
                   {open === i.id && !exact && (
                     <div className="mt-3 grid gap-2 rounded-xl border p-3 sm:grid-cols-2 lg:grid-cols-3">
-                      <Select value={e.type} onValueChange={(v) => edit(i.id, { type: v as ReviewEdit["type"] })}>
+                      <Select value={e.type} onValueChange={(v) => edit(i.id, { type: v as NonNullable<ReviewEdit["type"]> })}>
                         <SelectTrigger aria-label="Type"><SelectValue /></SelectTrigger>
                         <SelectContent>{TYPES.map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}</SelectContent>
                       </Select>
@@ -213,7 +213,7 @@ export function LiveStatementStudio() {
                       )}
                       {e.type === "loan_repayment" && (
                         <Input type="number" min={0} step="0.01" placeholder="Interest part (optional, from loan statement)" aria-label="Interest"
-                          onChange={(ev) => edit(i.id, { interest: ev.target.value === "" ? undefined : Number(ev.target.value) })} />
+                          onChange={(ev) => setEdits((m) => { const { interest: _drop, ...rest } = m[i.id] ?? {}; return { ...m, [i.id]: ev.target.value === "" ? rest : { ...rest, interest: Number(ev.target.value) } }; })} />
                       )}
                       <label className="flex items-center gap-2 text-xs sm:col-span-2 lg:col-span-3">
                         <Checkbox checked={!!edits[i.id]?.remember} onCheckedChange={(v) => edit(i.id, { remember: !!v })} />
