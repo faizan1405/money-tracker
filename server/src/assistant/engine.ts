@@ -56,7 +56,7 @@ const Understanding = z.object({
 const UNDERSTAND_SYSTEM = (today: string, ws: WorkspaceRec[], categories: string[]) => `You convert a personal-finance question into a query for Money Hub. You do NOT answer it.
 Today is ${today} (India). Workspaces: ${ws.map((w) => `${w.key} = "${w.name}" (${w.kind})`).join("; ")}; "all" = every workspace.
 Known categories: ${categories.join(", ")}.
-The user may write English, Hindi (Devanagari) or Hinglish (Hindi in Latin letters, e.g. "is mahine kitna kharcha hua"). Set language accordingly.
+The user may write English, Hindi (Devanagari) or Hinglish (Hindi in Latin letters, e.g. "is mahine kitna kharcha hua"). Set language from the CURRENT question only (not earlier ones).
 Metrics: spending (total spent), income, profit (income − expenses; for a business "profit"), cash_flow (money in/out of accounts), balances (money available now),
 category_breakdown (where money goes), category_spend / merchant_spend (spending on one category or merchant — put its name in term, e.g. "Meta Ads", "hosting", "Swiggy"),
 owed_to_me (who owes me), i_owe (my loans/dues), upcoming_payments, increasing_expenses, recurring_expenses (subscriptions), unnecessary_expenses, summary (overall situation),
@@ -133,6 +133,12 @@ export function mergeContext(u: z.infer<typeof Understanding>, prev: QueryContex
   };
 }
 
+/** Only used when the AI couldn't classify the message. */
+export function guessLang(q: string): Lang {
+  if (/[\u0900-\u097F]/.test(q)) return "hi";
+  return /\b(kitna|kya|mera|mere|hua|kharcha|paisa|mahine|kar do|batao|hai)\b/i.test(q) ? "hinglish" : "en";
+}
+
 export interface AskInput { question: string; uiWorkspace: string; previous: QueryContext | null; recentQuestions: string[] }
 
 export async function answerQuestion(ai: OpenRouterClient, ctx: AiCallCtx, data: FinanceData, today: string, input: AskInput): Promise<AnswerResult> {
@@ -144,14 +150,19 @@ export async function answerQuestion(ai: OpenRouterClient, ctx: AiCallCtx, data:
   const track = (u: { costUsd: number; ms: number; model: string }) => { usage.costUsd += u.costUsd; usage.calls++; usage.ms += u.ms; usage.models.push(u.model); };
 
   // 1) Understanding — the model may only pick from allowlisted enums.
+  // A refusal or malformed reply here (e.g. on a prompt-injection attempt) is treated as "unsupported", never retried as-is.
   const und = await ai.json({
     model: ai.cfg.fastModel, system: UNDERSTAND_SYSTEM(today, data.workspaces, categories),
     user: JSON.stringify({ previousQuery: input.previous, earlierQuestions: input.recentQuestions.slice(-3), currentWorkspaceOnScreen: input.uiWorkspace, question }),
     schemaName: "finance_query", jsonSchema: understandingSchema(wsKeys), validate: Understanding, maxTokens: 300,
-  }, budget, ctx);
-  track(und.usage);
-  const context = mergeContext(und.data, input.previous, input.uiWorkspace, wsKeys);
-  const lang = und.data.language;
+  }, budget, ctx).catch((e: unknown) => {
+    if (e instanceof AiError && e.code === "invalid_output") return null;
+    throw e;
+  });
+  if (und) track(und.usage);
+  const parsed = und?.data ?? { metric: "unsupported", workspace: "unspecified", period: "unspecified", from: null, to: null, compare: "unspecified" as const, term: null, language: guessLang(question) };
+  const context = mergeContext(parsed, und ? input.previous : null, input.uiWorkspace, wsKeys);
+  const lang = parsed.language;
 
   // 2) Read-only calculation in the backend.
   const range = resolvePeriod(context.period, today, { from: context.from ?? null, to: context.to ?? null });

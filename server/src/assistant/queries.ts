@@ -82,7 +82,7 @@ export function detectRecurring(txns: TxnRec[], ws: string, today: string) {
   const months = monthsBack(today, 4);
   const by = new Map<string, Map<string, number>>();
   for (const t of txns) {
-    if (!inWs(ws)(t) || expenseOf(t) <= 0 || !months.includes(t.date.slice(0, 7))) continue;
+    if (!inWs(ws)(t) || t.type === "loan_repayment" || expenseOf(t) <= 0 || !months.includes(t.date.slice(0, 7))) continue;
     const k = (t.merchant || t.description).trim().toLowerCase();
     if (!k) continue;
     const m = by.get(k) ?? new Map<string, number>();
