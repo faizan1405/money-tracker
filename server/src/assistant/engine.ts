@@ -83,7 +83,7 @@ Rules:
 /** Every amount a valid answer may mention, as paise. */
 export function allowedAmounts(f: Facts) {
   const s = new Set<number>([0]);
-  const add = (p?: number) => { if (p !== undefined) s.add(Math.abs(p)); };
+  const add = (p?: number) => { if (p !== undefined) { s.add(Math.abs(p)); s.add(Math.round(Math.abs(p) / 100) * 100); } };
   f.figures.forEach((x) => { add(x.paise); if (x.text) amountsIn(x.text).forEach(add); });
   f.rows?.forEach((r) => { add(r.paise); if (r.sub) amountsIn(r.sub).forEach(add); });
   f.transactions?.forEach((t) => add(t.paise));
@@ -95,7 +95,7 @@ export function allowedAmounts(f: Facts) {
 export function answerIsGrounded(text: string, f: Facts) {
   const ok = allowedAmounts(f);
   if (/\d+(\.\d+)?\s?(lakh|lac|crore|k\b)/i.test(text)) return false;
-  return amountsIn(text).every((a) => ok.has(a) || ok.has(Math.round(a / 100) * 100));
+  return amountsIn(text).every((a) => ok.has(a));
 }
 
 /** Facts as the AI sees them: formatted strings, no ids, no account numbers. */
