@@ -1,3 +1,4 @@
+import { LiveStatementStudio } from "@/components/app/LiveStatementStudio";
 import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -29,6 +30,12 @@ const STEPS = ["Upload", "Text / OCR extraction", "Transaction detection", "Cate
 const CATS = [...PERSONAL_CATEGORIES, ...BUSINESS_CATEGORIES, ...INCOME_CATEGORIES, ...SYSTEM_CATEGORIES];
 
 function Studio() {
+  const { mode } = useFinance();
+  if (mode === "production") return <><PageHeader title="AI Statement Studio" subtitle="Upload a statement — your server extracts and categorises it, then you review." /><LiveStatementStudio /></>;
+  return <PreviewStudio />;
+}
+
+function PreviewStudio() {
   const f = useFinance();
   const [account, setAccount] = useState("hdfc");
   const [file, setFile] = useState<File | null>(null);

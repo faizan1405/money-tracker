@@ -14,6 +14,7 @@ import { downloadCSV } from "@/lib/finance/download";
 import { BUSINESS_CATEGORIES, PERSONAL_CATEGORIES, WORKSPACES } from "@/lib/finance/data";
 import type { WorkspaceId } from "@/lib/finance/types";
 import { PageHeader, Panel, Pill } from "@/components/app/ui-bits";
+import { BackendPanel } from "@/components/app/BackendPanel";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -124,12 +125,13 @@ function Settings() {
         </TabsContent>
 
         <TabsContent value="data" className="mt-4 grid gap-4 lg:grid-cols-2">
+          <BackendPanel />
           <Panel title="Export">
             <Button variant="outline" onClick={() => downloadCSV("money-hub-all.csv", toCSV(f.txns, f.accounts))}><Download className="size-4" />Download all transactions (CSV)</Button>
           </Panel>
           <Panel title="Privacy">
             <div className="flex gap-3 text-sm"><ShieldCheck className="mt-0.5 size-4 shrink-0 text-warning" /><p className="text-muted-foreground">Preview data lives only in this browser's storage. It is <b>not</b> secure financial storage — please don't enter real account numbers or credentials here.</p></div>
-            <Button variant="outline" className="mt-4" onClick={() => { f.resetDemo(); toast.success("Demo data restored"); }}><RotateCcw className="size-4" />Reset demo data</Button>
+            {f.mode === "preview" && <Button variant="outline" className="mt-4" onClick={() => { f.resetDemo(); toast.success("Demo data restored"); }}><RotateCcw className="size-4" />Reset demo data</Button>}
           </Panel>
         </TabsContent>
       </Tabs>

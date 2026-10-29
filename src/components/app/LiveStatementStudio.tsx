@@ -7,7 +7,7 @@ import { Panel, Pill } from "@/components/app/ui-bits";
 import { useFinance } from "@/lib/finance/store";
 import { statementsApi } from "@/lib/api/services";
 import type { ReviewItem, StatementImport } from "@/lib/api/contracts";
-import { inr } from "@/lib/finance/format";
+import { formatINR as inr } from "@/lib/finance/format";
 
 /** Production statement flow: file goes to the backend, which runs extraction + AI (OpenRouter) server-side. */
 export function LiveStatementStudio() {
