@@ -62,7 +62,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const active = (to: string) => (to === "/" ? path === "/" : path.startsWith(to));
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen overflow-x-clip">
       {/* Desktop sidebar */}
       <aside className={cn("fixed inset-y-0 left-0 z-30 hidden flex-col border-r bg-sidebar transition-[width] duration-300 lg:flex", collapsed ? "w-[76px]" : "w-64")}>
         <div className="flex h-16 items-center justify-between px-4">
