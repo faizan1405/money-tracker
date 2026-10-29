@@ -21,7 +21,9 @@ export interface Paginated<T> {
 // ---- Auth ----
 export interface LoginRequest { email: string; password: string }
 export interface AuthUser { id: string; email: string; name: string }
-export interface LoginResponse { token: string; expiresAt: string; user: AuthUser }
+/** The session itself travels only in an HttpOnly cookie; no token is ever returned to JavaScript. */
+export interface LoginResponse { expiresAt: string; user: AuthUser }
+export type MeResponse = LoginResponse;
 
 // ---- Workspaces ----
 export interface WorkspaceDTO { id: WorkspaceId | string; name: string; short: string; kind: "personal" | "business" }

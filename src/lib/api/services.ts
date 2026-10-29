@@ -18,7 +18,7 @@ export const healthApi = { check: (baseUrl?: string) => apiRequest<HealthRespons
 export const authApi = {
   login: (b: LoginRequest) => apiRequest<LoginResponse>("/api/auth/login", { method: "POST", body: b, auth: false }),
   logout: () => apiRequest<void>("/api/auth/logout", { method: "POST" }),
-  me: () => apiRequest<LoginResponse["user"]>("/api/auth/me"),
+  me: () => apiRequest<LoginResponse>("/api/auth/me", { auth: false }),
 };
 
 export const bootstrapApi = { load: () => apiRequest<BootstrapResponse>("/api/bootstrap") };
