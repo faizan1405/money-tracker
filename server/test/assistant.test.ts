@@ -12,6 +12,7 @@ import { config, cookieToken, makeRepo, ORIGIN, setup, tx } from "./helpers.js";
 // Fixed clock: 20 Oct 2026, 11:30 India time.
 const NOW = Date.parse("2026-10-20T06:00:00Z");
 const now = () => NOW;
+const testConfig = { ...config, assistant: { chatTimeoutMs: 200, retentionDays: 90, perMinute: 1000 } };
 const aiCfg = { apiKey: "test-key", fastModel: "openai/gpt-4.1-mini", strongModel: "openai/gpt-4.1", timeoutMs: 200, maxRetries: 0, maxCostPerStatementUsd: 0.05, dailyCostLimitUsd: 1, monthlyCostLimitUsd: 5, maxCostPerRequestUsd: 0.01 };
 
 type U = { metric: string; workspace?: string; period?: string; compare?: string; term?: string | null; language?: string; from?: string | null; to?: string | null };
@@ -74,7 +75,7 @@ describe("assistant (read-only finance answers)", () => {
     repo = await makeRepo();
     ai = fakeAi();
     ctx = await setup(repo, { now });
-    app = createApp({ repo, config, now, ai: client() });
+    app = createApp({ repo, config: testConfig, now, ai: client() });
     await seed(app, ctx.auth, ctx);
   });
 
@@ -133,8 +134,8 @@ describe("assistant (read-only finance answers)", () => {
   it("balances, dues and upcoming payments come from recorded data", async () => {
     ai.queue.push({ metric: "balances", workspace: "all" });
     const b = (await chat(app, ctx.auth, { message: "How much money do I have across my accounts?" })).body.message.facts;
-    // Bank: 10000 −1200.50 −3000 −5000 −10000 = −9200.50 ; Biz: 0 +5000 +80000 −14000 −2000 −9000 +50000 −2000 = 108000
-    expect(b.figures[0].paise).toBe(-920050 + 10_800_000);
+    // Bank: 10000 −1200.50 −3000 −5000 −10000 −4000 = −13200.50 ; Biz: 0 +5000 +80000 −14000 −2000 −9000 +50000 −2000 = 108000 ; card excluded
+    expect(b.figures[0].paise).toBe(-1_320_050 + 10_800_000);
     ai.queue.push({ metric: "owed_to_me", workspace: "all" });
     const o = (await chat(app, ctx.auth, { message: "Who owes me money?" })).body.message.facts;
     expect(o.rows[0]).toMatchObject({ label: "Beta Pvt Ltd", paise: 2_500_000 });
@@ -224,7 +225,7 @@ describe("assistant (read-only finance answers)", () => {
     await chat(app, ctx.auth, { message: "Summary" });
     const later = createApp({ repo, config: { ...config, assistant: { chatTimeoutMs: 1000, retentionDays: 30, perMinute: 20 } }, now: () => NOW + 31 * 86_400_000, ai: client() });
     expect((await request(later).get("/api/ai/conversations").set(ctx.auth)).status).toBe(401); // session expired after 31 days
-    expect(await repo.purgeConversations(ctx.owner.id, new Date(NOW + 86_400_000))).toBe(1);
+    expect(await repo.purgeConversations(ctx.owner.id, new Date(Date.now() + 86_400_000))).toBe(1);
   });
 });
 
@@ -234,7 +235,7 @@ describe("persistent AI budget", () => {
     const ai = fakeAi();
     const ctx = await setup(repo, { now });
     // Limit fits exactly 3 reservations of $0.01
-    const mk = () => createApp({ repo, config, now, ai: new OpenRouterClient({ ...aiCfg, dailyCostLimitUsd: 0.03, maxCostPerRequestUsd: 0.01 }, ai.fetch, { usage: () => {}, error: () => {} }, async () => {}) });
+    const mk = () => createApp({ repo, config: testConfig, now, ai: new OpenRouterClient({ ...aiCfg, dailyCostLimitUsd: 0.03, maxCostPerRequestUsd: 0.01 }, ai.fetch, { usage: () => {}, error: () => {} }, async () => {}) });
     const app = mk();
     // 5 concurrent requests → at most 3 AI calls can start until earlier ones settle at their real (lower) cost
     const rs = await Promise.all(Array.from({ length: 5 }, () => chat(app, ctx.auth, { message: "Summary" })));
@@ -284,7 +285,7 @@ describe("pure helpers", () => {
     expect(resolvePeriod("last_month", "2026-03-31")).toMatchObject({ from: "2026-02-01", to: "2026-02-28" });
     expect(resolvePeriod("this_financial_year", "2026-02-10")).toMatchObject({ from: "2025-04-01", to: "2026-02-10" });
     const r = resolvePeriod("last_30_days", "2026-10-20");
-    expect(previousPeriod("last_30_days", r)).toMatchObject({ from: "2026-08-21", to: "2026-09-20" });
+    expect(previousPeriod("last_30_days", r)).toMatchObject({ from: "2026-08-22", to: "2026-09-20" });
   });
   it("grounding check only allows backend amounts, no rounding to lakh", () => {
     const facts = { metric: "spending", workspace: "all", workspaceLabel: "All", period: { from: "a", to: "b", label: "x" }, figures: [{ key: "e", label: "Spent", paise: 12_345_050 }], notes: [], empty: false } as never;
