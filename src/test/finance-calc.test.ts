@@ -36,3 +36,48 @@ describe("finance rules", () => {
     expect(totals(t).income).toBe(0);
   });
 });
+
+import { dedupe, byCategory } from "@/lib/finance/calc";
+
+describe("phase 1.5 regressions", () => {
+  it("card refund reduces spending and card balance owed", () => {
+    const t: Transaction[] = [
+      { ...base, id: "1", type: "expense", amount: 5000, accountId: "card" },
+      { ...base, id: "2", type: "refund", amount: 1500, accountId: "card" },
+    ];
+    expect(totals(t).expense).toBe(3500);
+    expect(accountBalance(card, t)).toBe(-3500);
+  });
+
+  it("personal to business transfer is neither business income nor personal expense", () => {
+    const t: Transaction[] = [{ ...base, id: "1", type: "transfer", amount: 20000, accountId: "bank", toAccountId: "biz", workspace: "personal" }];
+    expect(totals(t)).toMatchObject({ income: 0, expense: 0, bizIncome: 0, bizExpense: 0 });
+  });
+
+  it("business profit uses only business income and expenses", () => {
+    const t: Transaction[] = [
+      { ...base, id: "1", type: "income", amount: 80000, accountId: "biz", workspace: "scaleflow" },
+      { ...base, id: "2", type: "expense", amount: 12000, accountId: "biz", workspace: "scaleflow" },
+      { ...base, id: "3", type: "expense", amount: 3000, accountId: "bank" },
+    ];
+    expect(totals(t)).toMatchObject({ bizProfit: 68000, expense: 15000, income: 80000 });
+  });
+
+  it("negative adjustment lowers balance without being an expense", () => {
+    const t: Transaction[] = [{ ...base, id: "1", type: "adjustment", amount: 400, adjustmentSign: -1, accountId: "bank" }];
+    expect(accountBalance(bank, t)).toBe(9600);
+    expect(totals(t).expense).toBe(0);
+  });
+
+  it("re-importing the same statement adds nothing", () => {
+    const row = { ...base, type: "expense" as const, amount: 499, merchant: "Swiggy", accountId: "bank" };
+    const ledger: Transaction[] = [{ ...row, id: "a" }];
+    expect(dedupe([row, row], ledger)).toEqual({ fresh: [], skipped: 2 });
+    expect(dedupe([row, row], []).fresh).toHaveLength(1);
+  });
+
+  it("refund-only category never shows negative spending", () => {
+    const t: Transaction[] = [{ ...base, id: "1", type: "refund", amount: 700, accountId: "bank", category: "Shopping" }];
+    expect(byCategory(t)).toEqual([]);
+  });
+});
