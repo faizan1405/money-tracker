@@ -32,6 +32,8 @@ model Owner {
   rules         Rule[]
   imports       StatementImport[]
   auditLogs     AuditLog[]
+  aiUsage       AiUsage[]
+  conversations AiConversation[]
 }
 
 model Session {
@@ -283,4 +285,49 @@ model AuditLog {
   owner     Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@index([ownerId, createdAt])
+}
+
+/// One row per AI request (or an outstanding reservation). Never stores prompts or answers.
+model AiUsage {
+  id               String   @id @default(cuid())
+  ownerId          String
+  feature          String   @db.VarChar(32)  // statement | assistant | insights
+  model            String   @db.VarChar(100)
+  status           String   @db.VarChar(16)  // reserved | settled | failed
+  day              String   @db.Char(10)     // yyyy-mm-dd, Asia/Kolkata
+  month            String   @db.Char(7)      // yyyy-mm
+  reservedMicroUsd Int      @default(0)
+  costMicroUsd     Int      @default(0)
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  ms               Int      @default(0)
+  createdAt        DateTime @default(now())
+  owner            Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, day])
+  @@index([ownerId, month])
+}
+
+model AiConversation {
+  id        String      @id @default(cuid())
+  ownerId   String
+  title     String      @db.VarChar(120)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @default(now()) @updatedAt
+  owner     Owner       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  messages  AiMessage[]
+
+  @@index([ownerId, updatedAt])
+}
+
+model AiMessage {
+  id             String         @id @default(cuid())
+  conversationId String
+  role           String         @db.VarChar(16) // user | assistant
+  content        String         @db.Text
+  data           Json?          // verified facts + resolved query context for follow-ups
+  createdAt      DateTime       @default(now())
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
 }
