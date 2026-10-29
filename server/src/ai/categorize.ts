@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AiError, type OpenRouterClient } from "./openrouter.js";
+import { AiError, type AiCallCtx, type OpenRouterClient } from "./openrouter.js";
 
 /** Types the AI may suggest. Amounts, dates, refs and balances are never asked of or taken from the model. */
 export const AI_TYPES = ["income", "expense", "transfer", "refund", "loan_repayment", "loan_disbursement", "cc_payment"] as const;
