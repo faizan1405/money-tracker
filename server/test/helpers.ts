@@ -3,6 +3,19 @@ import { createApp } from "../src/app.js";
 import { hashPassword } from "../src/auth.js";
 import type { AppConfig } from "../src/config.js";
 import type { Repo } from "../src/repo/types.js";
+import { MemoryRepo } from "../src/repo/memory.js";
+
+/** TEST_DATABASE_URL set → run against a real MySQL/MariaDB through PrismaRepo (tables wiped per test). */
+export const onPrisma = !!process.env["TEST_DATABASE_URL"];
+let prisma: import("@prisma/client").PrismaClient | null = null;
+export async function makeRepo(): Promise<Repo> {
+  if (!onPrisma) return new MemoryRepo();
+  const { PrismaClient } = await import("@prisma/client");
+  const { PrismaRepo } = await import("../src/repo/prisma.js");
+  prisma ??= new PrismaClient({ datasourceUrl: process.env["TEST_DATABASE_URL"]! });
+  await prisma.owner.deleteMany(); // cascades to every owned table
+  return new PrismaRepo(prisma);
+}
 
 export const ORIGIN = "https://app.moneyhub.test";
 export const config: AppConfig = { isProd: false, port: 0, corsOrigins: [ORIGIN], sessionTtlMs: 3600_000, crossSiteCookies: true, uploadMaxBytes: 1e6, version: "test" };

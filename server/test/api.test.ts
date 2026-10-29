@@ -1,7 +1,7 @@
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { MemoryRepo } from "../src/repo/memory.js";
-import { ORIGIN, PASSWORD, setup, tx } from "./helpers.js";
+import { ORIGIN, PASSWORD, makeRepo, onPrisma, setup, tx } from "./helpers.js";
 
 const summary = (app: Parameters<typeof request>[0], auth: object, ws = "all") =>
   request(app).get(`/api/analytics/summary?from=2026-10-01&to=2026-10-31&workspace=${ws}`).set(auth);
@@ -10,7 +10,7 @@ const balances = async (app: Parameters<typeof request>[0], auth: object) =>
 
 describe("auth", () => {
   it("login returns a token and sets an HttpOnly cookie", async () => {
-    const { login } = await setup(new MemoryRepo());
+    const { login } = await setup(await makeRepo());
     expect(login.status).toBe(200);
     expect(login.body.user.email).toBe("owner@test.in");
     const c = String(login.headers["set-cookie"]);
@@ -20,19 +20,19 @@ describe("auth", () => {
   });
 
   it("wrong password and unknown email both give 401", async () => {
-    const { app } = await setup(new MemoryRepo());
+    const { app } = await setup(await makeRepo());
     expect((await request(app).post("/api/auth/login").send({ email: "owner@test.in", password: "nope" })).status).toBe(401);
     expect((await request(app).post("/api/auth/login").send({ email: "x@test.in", password: PASSWORD })).status).toBe(401);
   });
 
   it("rate-limits repeated sign-in attempts", async () => {
-    const { app } = await setup(new MemoryRepo(), { loginLimit: 3 });
+    const { app } = await setup(await makeRepo(), { loginLimit: 3 });
     for (let i = 0; i < 3; i++) await request(app).post("/api/auth/login").send({ email: "owner@test.in", password: "bad" });
     expect((await request(app).post("/api/auth/login").send({ email: "owner@test.in", password: PASSWORD })).status).toBe(429);
   });
 
   it("all financial endpoints reject unauthenticated calls", async () => {
-    const { app } = await setup(new MemoryRepo());
+    const { app } = await setup(await makeRepo());
     for (const p of ["/api/bootstrap", "/api/transactions", "/api/accounts", "/api/workspaces", "/api/dues"]) {
       expect((await request(app).get(p)).status).toBe(401);
     }
@@ -40,14 +40,14 @@ describe("auth", () => {
   });
 
   it("logout kills the session", async () => {
-    const { app, auth } = await setup(new MemoryRepo());
+    const { app, auth } = await setup(await makeRepo());
     expect((await request(app).post("/api/auth/logout").set(auth)).status).toBe(204);
     expect((await request(app).get("/api/bootstrap").set(auth)).status).toBe(401);
   });
 
   it("expired session returns session_expired", async () => {
     let t = Date.now();
-    const { app, auth } = await setup(new MemoryRepo(), { now: () => t });
+    const { app, auth } = await setup(await makeRepo(), { now: () => t });
     t += 3600_000 + 1;
     const r = await request(app).get("/api/bootstrap").set(auth);
     expect(r.status).toBe(401);
@@ -55,7 +55,7 @@ describe("auth", () => {
   });
 
   it("cookie-authenticated writes need an allowed Origin (CSRF)", async () => {
-    const { app, token, bank } = await setup(new MemoryRepo());
+    const { app, token, bank } = await setup(await makeRepo());
     const body = { items: [tx({ type: "expense", amount: 10, accountId: bank })] };
     const cookie = `mh_session=${token}`;
     expect((await request(app).post("/api/transactions").set("Cookie", cookie).set("Origin", "https://evil.test").send(body)).status).toBe(403);
@@ -65,7 +65,7 @@ describe("auth", () => {
 });
 
 describe("ownership", () => {
-  it("one owner can't use or see another owner's accounts and transactions", async () => {
+  it.skipIf(onPrisma)("one owner can't use or see another owner's accounts and transactions", async () => {
     const repo = new MemoryRepo();
     const a = await setup(repo);
     await request(a.app).post("/api/transactions").set(a.auth).send({ items: [tx({ type: "expense", amount: 50, accountId: a.bank })] });
@@ -84,7 +84,7 @@ describe("ownership", () => {
 
 describe("financial rules", () => {
   it("income and expense change totals and balances", async () => {
-    const { app, auth, bank } = await setup(new MemoryRepo());
+    const { app, auth, bank } = await setup(await makeRepo());
     await request(app).post("/api/transactions").set(auth).send({ items: [tx({ type: "income", amount: 50000, accountId: bank, category: "Salary" }), tx({ type: "expense", amount: 1200.5, accountId: bank, category: "Food" })] });
     const s = (await summary(app, auth)).body;
     expect(s.income).toBe(50000);
@@ -94,7 +94,7 @@ describe("financial rules", () => {
   });
 
   it("personal → business transfer is not income or expense", async () => {
-    const { app, auth, bank, biz } = await setup(new MemoryRepo());
+    const { app, auth, bank, biz } = await setup(await makeRepo());
     await request(app).post("/api/transactions").set(auth).send({ items: [tx({ type: "transfer", amount: 3000, accountId: bank, toAccountId: biz, category: "Transfer" })] });
     const s = (await summary(app, auth)).body;
     expect([s.income, s.expense]).toEqual([0, 0]);
@@ -104,7 +104,7 @@ describe("financial rules", () => {
   });
 
   it("card purchase counts once; paying the card bill is not another expense", async () => {
-    const { app, auth, bank, card } = await setup(new MemoryRepo());
+    const { app, auth, bank, card } = await setup(await makeRepo());
     await request(app).post("/api/transactions").set(auth).send({ items: [
       tx({ type: "expense", amount: 2500, accountId: card, category: "Shopping" }),
       tx({ type: "cc_payment", amount: 2500, accountId: bank, toAccountId: card, category: "Card payment" }),
@@ -116,13 +116,13 @@ describe("financial rules", () => {
   });
 
   it("card payment must go to a credit card account", async () => {
-    const { app, auth, bank, biz } = await setup(new MemoryRepo());
+    const { app, auth, bank, biz } = await setup(await makeRepo());
     const r = await request(app).post("/api/transactions").set(auth).send({ items: [tx({ type: "cc_payment", amount: 10, accountId: bank, toAccountId: biz })] });
     expect(r.status).toBe(422);
   });
 
   it("refund reduces spending; loan principal is excluded, interest is an expense", async () => {
-    const { app, auth, bank } = await setup(new MemoryRepo());
+    const { app, auth, bank } = await setup(await makeRepo());
     await request(app).post("/api/transactions").set(auth).send({ items: [
       tx({ type: "expense", amount: 1000, accountId: bank }),
       tx({ type: "refund", amount: 400, accountId: bank }),
@@ -135,14 +135,14 @@ describe("financial rules", () => {
   });
 
   it("balance corrections move the balance without touching totals", async () => {
-    const { app, auth, bank } = await setup(new MemoryRepo());
+    const { app, auth, bank } = await setup(await makeRepo());
     await request(app).post("/api/transactions").set(auth).send({ items: [tx({ type: "adjustment", amount: 250, adjustmentSign: -1, accountId: bank })] });
     expect((await balances(app, auth))[bank]).toBe(9750);
     expect((await summary(app, auth)).body.net).toBe(0);
   });
 
   it("paise are exact: 0.1 + 0.2 = 0.3 and >2 decimals are rejected", async () => {
-    const { app, auth, bank } = await setup(new MemoryRepo());
+    const { app, auth, bank } = await setup(await makeRepo());
     await request(app).post("/api/transactions").set(auth).send({ items: [tx({ type: "expense", amount: 0.1, accountId: bank }), tx({ type: "expense", amount: 0.2, accountId: bank })] });
     expect((await summary(app, auth)).body.expense).toBe(0.3);
     const bad = await request(app).post("/api/transactions").set(auth).send({ items: [tx({ type: "expense", amount: 1.005, accountId: bank })] });
@@ -150,7 +150,7 @@ describe("financial rules", () => {
   });
 
   it("editing and deleting update totals", async () => {
-    const { app, auth, bank } = await setup(new MemoryRepo());
+    const { app, auth, bank } = await setup(await makeRepo());
     const [t] = (await request(app).post("/api/transactions").set(auth).send({ items: [tx({ type: "expense", amount: 900, accountId: bank })] })).body;
     await request(app).patch(`/api/transactions/${t.id}`).set(auth).send({ amount: 1500 });
     expect((await summary(app, auth)).body.expense).toBe(1500);
@@ -164,7 +164,7 @@ describe("financial rules", () => {
 
 describe("duplicates and atomicity", () => {
   it("same bank reference can't be saved twice; different refs with same details are kept", async () => {
-    const { app, auth, bank } = await setup(new MemoryRepo());
+    const { app, auth, bank } = await setup(await makeRepo());
     const t = tx({ type: "expense", amount: 300, accountId: bank, merchant: "Zomato", ref: "UPI123" });
     expect((await request(app).post("/api/transactions").set(auth).send({ items: [t] })).status).toBe(201);
     const again = await request(app).post("/api/transactions").set(auth).send({ items: [t] });
@@ -174,7 +174,7 @@ describe("duplicates and atomicity", () => {
   });
 
   it("a batch with one bad row saves nothing", async () => {
-    const { app, auth, bank } = await setup(new MemoryRepo());
+    const { app, auth, bank } = await setup(await makeRepo());
     const r = await request(app).post("/api/transactions").set(auth).send({ items: [tx({ type: "expense", amount: 10, accountId: bank }), tx({ type: "expense", amount: 20, accountId: "missing" })] });
     expect(r.status).toBe(422);
     const dup = await request(app).post("/api/transactions").set(auth).send({ items: [tx({ type: "expense", amount: 10, accountId: bank, ref: "R1" }), tx({ type: "expense", amount: 20, accountId: bank, ref: "R1" })] });
@@ -185,7 +185,7 @@ describe("duplicates and atomicity", () => {
 
 describe("dashboard + other endpoints", () => {
   it("workspace filter and search work and match totals", async () => {
-    const { app, auth, bank, biz } = await setup(new MemoryRepo());
+    const { app, auth, bank, biz } = await setup(await makeRepo());
     await request(app).post("/api/transactions").set(auth).send({ items: [
       tx({ type: "income", amount: 80000, accountId: biz, workspace: "scaleflow", client: "Acme", category: "Client payment" }),
       tx({ type: "expense", amount: 500, accountId: bank, merchant: "Swiggy" }),
@@ -200,21 +200,23 @@ describe("dashboard + other endpoints", () => {
   });
 
   it("unfinished modules return 501, never fake success", async () => {
-    const { app, auth } = await setup(new MemoryRepo());
+    const { app, auth } = await setup(await makeRepo());
     expect((await request(app).post("/api/ai/chat").set(auth).send({ messages: [] })).status).toBe(501);
     expect((await request(app).get("/api/statements").set(auth)).status).toBe(501);
   });
 
   it("health reports the database honestly", async () => {
-    const repo = new MemoryRepo();
+    const repo = await makeRepo();
     const { app } = await setup(repo);
     expect((await request(app).get("/api/health")).body.ok).toBe(true);
-    repo.down = true;
-    expect((await request(app).get("/api/health")).status).toBe(503);
+    if (repo instanceof MemoryRepo) {
+      repo.down = true;
+      expect((await request(app).get("/api/health")).status).toBe(503);
+    }
   });
 
   it("an account with transactions can't be removed", async () => {
-    const { app, auth, bank } = await setup(new MemoryRepo());
+    const { app, auth, bank } = await setup(await makeRepo());
     await request(app).post("/api/transactions").set(auth).send({ items: [tx({ type: "expense", amount: 10, accountId: bank })] });
     const r = await request(app).put("/api/collections/accounts").set(auth).send({ items: [] });
     expect(r.status).toBe(409);
