@@ -101,7 +101,7 @@ function Loans() {
       <PayDialog due={pay} onClose={() => setPay(null)} onSave={(amt, interest) => {
         if (!pay) return;
         const principalPart = Math.min(pay.outstanding, amt - interest);
-        f.update("dues", f.dues.map((d) => d.id === pay.id ? { ...d, outstanding: d.outstanding - principalPart, payments: [{ date: new Date().toISOString(), amount: amt, interest: interest || undefined }, ...d.payments] } : d));
+        f.update("dues", f.dues.map((d) => d.id === pay.id ? { ...d, outstanding: d.outstanding - principalPart, payments: [{ date: new Date().toISOString(), amount: amt, ...(interest ? { interest } : {}) }, ...d.payments] } : d));
         const biz = pay.workspace === "scaleflow";
         f.addTxn(pay.direction === "i_owe"
           ? { type: "loan_repayment", amount: amt, interest, merchant: pay.party, description: `Repayment — ${pay.party}`, category: "Loan", workspace: pay.workspace, accountId: biz ? "kotak-biz" : "hdfc", date: new Date().toISOString(), status: "cleared", source: "manual" }
@@ -141,12 +141,12 @@ function NewDueDialog({ open, onClose, onSave }: { open: boolean; onClose: () =>
         <DialogHeader><DialogTitle>New loan or due</DialogTitle></DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="sm:col-span-2"><Label>Person, company or lender</Label><Input className="mt-1.5" value={d.party ?? ""} onChange={(e) => setD({ ...d, party: e.target.value })} /></div>
-          <div><Label>Direction</Label><Select value={d.direction} onValueChange={(v) => setD({ ...d, direction: v as Due["direction"] })}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="i_owe">I owe</SelectItem><SelectItem value="owed_to_me">Owed to me</SelectItem></SelectContent></Select></div>
-          <div><Label>Kind</Label><Select value={d.kind} onValueChange={(v) => setD({ ...d, kind: v as Due["kind"] })}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="personal">Personal</SelectItem><SelectItem value="loan">Bank loan</SelectItem><SelectItem value="emi">EMI</SelectItem><SelectItem value="client">Client</SelectItem></SelectContent></Select></div>
+          <div><Label>Direction</Label><Select value={d.direction ?? ""} onValueChange={(v) => setD({ ...d, direction: v as Due["direction"] })}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="i_owe">I owe</SelectItem><SelectItem value="owed_to_me">Owed to me</SelectItem></SelectContent></Select></div>
+          <div><Label>Kind</Label><Select value={d.kind ?? ""} onValueChange={(v) => setD({ ...d, kind: v as Due["kind"] })}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="personal">Personal</SelectItem><SelectItem value="loan">Bank loan</SelectItem><SelectItem value="emi">EMI</SelectItem><SelectItem value="client">Client</SelectItem></SelectContent></Select></div>
           <div><Label>Amount (₹)</Label><Input className="mt-1.5" inputMode="decimal" onChange={(e) => setD({ ...d, principal: Number(e.target.value), outstanding: Number(e.target.value) })} /></div>
           <div><Label>Due date</Label><Input className="mt-1.5" type="date" onChange={(e) => setD({ ...d, dueDate: new Date(e.target.value).toISOString() })} /></div>
           <div><Label>Interest % (optional)</Label><Input className="mt-1.5" inputMode="decimal" onChange={(e) => setD({ ...d, interestRate: Number(e.target.value) || undefined })} /></div>
-          <div><Label>Workspace</Label><Select value={d.workspace} onValueChange={(v) => setD({ ...d, workspace: v as Due["workspace"] })}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="personal">Personal</SelectItem><SelectItem value="scaleflow">Scale Flow</SelectItem></SelectContent></Select></div>
+          <div><Label>Workspace</Label><Select value={d.workspace ?? ""} onValueChange={(v) => setD({ ...d, workspace: v as Due["workspace"] })}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="personal">Personal</SelectItem><SelectItem value="scaleflow">Scale Flow</SelectItem></SelectContent></Select></div>
         </div>
         <Button onClick={() => {
           if (!d.party || !d.principal || !d.dueDate) { toast.error("Fill in name, amount and due date"); return; }

@@ -37,7 +37,9 @@ function Settings() {
     const j = i + d;
     if (j < 0 || j >= rules.length) return;
     const next = rules.slice();
-    [next[i], next[j]] = [next[j], next[i]];
+    const a = next[i]!;
+    next[i] = next[j]!;
+    next[j] = a;
     f.update("rules", next.map((r, k) => ({ ...r, priority: k + 1 })));
   };
 

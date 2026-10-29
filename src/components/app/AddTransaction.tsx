@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useFinance } from "@/lib/finance/store";
 import { BUSINESS_CATEGORIES, INCOME_CATEGORIES, PERSONAL_CATEGORIES, PROJECTS, SYSTEM_CATEGORIES } from "@/lib/finance/data";
-import type { Transaction, TxnType, WorkspaceId } from "@/lib/finance/types";
+import type { Draft, Transaction, TxnType, WorkspaceId } from "@/lib/finance/types";
 import { TYPE_LABEL } from "./ui-bits";
 
 const TYPES = Object.keys(TYPE_LABEL) as TxnType[];
@@ -34,10 +34,10 @@ const KEYWORDS: [RegExp, string][] = [
 ];
 
 /** Simple pattern-based parser for the preview. Not AI. */
-export function parseQuick(text: string): Partial<Transaction> | null {
+export function parseQuick(text: string): Draft<Transaction> | null {
   const amt = text.match(/(?:₹|rs\.?|inr)?\s*(\d[\d,]*(?:\.\d+)?)/i);
   if (!amt) return null;
-  const amount = Number(amt[1].replace(/,/g, ""));
+  const amount = Number((amt[1] ?? "0").replace(/,/g, ""));
   const isIncome = /received|got|earned|salary|paid me|credited/i.test(text);
   const cat = KEYWORDS.find(([r]) => r.test(text))?.[1];
   const biz = cat === "Meta Ads" || cat === "Hosting & Domains" || /business|client|scale ?flow/i.test(text);
@@ -55,8 +55,8 @@ export function parseQuick(text: string): Partial<Transaction> | null {
 
 export function AddTransactionDialog() {
   const { addOpen, closeAdd, prefill, editing, addTxn, updateTxn, deleteTxns, accounts, customCategories } = useFinance();
-  const blank = (): Partial<Transaction> => ({ type: "expense", workspace: "personal", accountId: "gpay", category: "Food & Dining", date: new Date().toISOString(), status: "cleared" });
-  const [f, setF] = useState<Partial<Transaction>>(blank);
+  const blank = (): Draft<Transaction> => ({ type: "expense", workspace: "personal", accountId: "gpay", category: "Food & Dining", date: new Date().toISOString(), status: "cleared" });
+  const [f, setF] = useState<Draft<Transaction>>(blank);
   const [quick, setQuick] = useState("");
 
   useEffect(() => {

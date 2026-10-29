@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ACCOUNTS, BUDGETS, GOALS, RULES, buildDemoTransactions, buildDues, buildRecurring } from "./data";
-import type { Account, Budget, Due, Goal, Period, Recurring, Rule, Transaction, WorkspaceFilter } from "./types";
+import type { Draft, Account, Budget, Due, Goal, Period, Recurring, Rule, Transaction, WorkspaceFilter } from "./types";
 
 const KEY = "moneyhub-preview-v1";
 
@@ -46,10 +46,10 @@ interface Ctx extends State {
   setDark: (d: boolean) => void;
   // UI
   addOpen: boolean;
-  openAdd: (prefill?: Partial<Transaction>) => void;
+  openAdd: (prefill?: Draft<Transaction>) => void;
   closeAdd: () => void;
-  prefill?: Partial<Transaction>;
-  editing?: Transaction;
+  prefill: Draft<Transaction> | undefined;
+  editing: Transaction | undefined;
   openEdit: (t: Transaction) => void;
 }
 
@@ -63,7 +63,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const now = new Date();
   const [custom, setCustom] = useState({ from: new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString().slice(0, 10), to: now.toISOString().slice(0, 10) });
   const [addOpen, setAddOpen] = useState(false);
-  const [prefill, setPrefill] = useState<Partial<Transaction>>();
+  const [prefill, setPrefill] = useState<Draft<Transaction>>();
   const [editing, setEditing] = useState<Transaction>();
   const [dark, setDarkState] = useState(false);
 

@@ -111,4 +111,6 @@ export interface Rule {
   enabled: boolean;
 }
 
+export type Draft<T> = { [K in keyof T]?: T[K] | undefined };
+
 export type Period = "week" | "month" | "last_month" | "year" | "custom";

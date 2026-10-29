@@ -14,7 +14,7 @@ export function TxnList({ txns, selectable, selected, onToggle, compact }: {
     <ul className="divide-y divide-border">
       {txns.map((t) => (
         <li key={t.id} className={cn("flex items-center gap-3 py-3", selected?.has(t.id) && "bg-primary-soft/40")}>
-          {selectable && <Checkbox checked={selected?.has(t.id)} onCheckedChange={() => onToggle?.(t.id)} aria-label={`Select ${t.merchant}`} />}
+          {selectable && <Checkbox checked={!!selected?.has(t.id)} onCheckedChange={() => { onToggle?.(t.id); }} aria-label={`Select ${t.merchant}`} />}
           <button onClick={() => openEdit(t)} className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <CategoryIcon category={t.category} />
             <div className="min-w-0 flex-1">

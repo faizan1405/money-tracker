@@ -35,6 +35,8 @@ function rng(seed: number) {
 }
 
 let n = 0;
+const pj = (i: number) => PROJECTS[i % PROJECTS.length]!;
+const pick = (a: string[], r: () => number) => a[Math.floor(r() * a.length)]!;
 const id = () => `t${++n}`;
 
 function at(now: Date, monthsAgo: number, day: number, hour = 12): string {
@@ -67,13 +69,13 @@ export function buildDemoTransactions(now = new Date()): Transaction[] {
     P(8, { type: "expense", amount: 1680, description: "CANVA PRO + FIGMA", merchant: "Canva", category: "Software & Tools", accountId: "kotak-biz", recurring: true }, "scaleflow");
     P(10, { type: "expense", amount: 1850 + Math.round(r() * 900), description: "BESCOM ELECTRICITY BILL", merchant: "BESCOM", category: "Bills & Utilities", accountId: "gpay" });
     P(11, { type: "expense", amount: 799, description: "AIRTEL FIBER", merchant: "Airtel", category: "Bills & Utilities", accountId: "gpay", recurring: true });
-    P(12, { type: "income", amount: 20000 + (m % 2) * 15000, description: `UPI-SCALE FLOW-${PROJECTS[m % 4].client.toUpperCase()}`, merchant: PROJECTS[m % 4].client, category: "Client Payment", accountId: "kotak-biz", client: PROJECTS[m % 4].client, project: PROJECTS[m % 4].name }, "scaleflow");
+    P(12, { type: "income", amount: 20000 + (m % 2) * 15000, description: `UPI-SCALE FLOW-${pj(m).client.toUpperCase()}`, merchant: pj(m).client, category: "Client Payment", accountId: "kotak-biz", client: pj(m).client, project: pj(m).name }, "scaleflow");
     P(14, { type: "expense", amount: 3500 + Math.round(r() * 2500), description: "FACEBK *META ADS", merchant: "Meta Ads", category: "Meta Ads", accountId: "kotak-biz" }, "scaleflow");
     P(15, { type: "transfer", amount: 10000, description: "Owner draw: Scale Flow → HDFC", merchant: "Self transfer", category: "Transfer", accountId: "kotak-biz", toAccountId: "hdfc" }, "scaleflow");
-    P(16, { type: "expense", amount: 6000, description: "UPI-FREELANCER-RAHUL DESIGNS", merchant: "Rahul Designs", category: "Freelancer Payments", accountId: "kotak-biz", project: PROJECTS[m % 4].name, client: PROJECTS[m % 4].client }, "scaleflow");
+    P(16, { type: "expense", amount: 6000, description: "UPI-FREELANCER-RAHUL DESIGNS", merchant: "Rahul Designs", category: "Freelancer Payments", accountId: "kotak-biz", project: pj(m).name, client: pj(m).client }, "scaleflow");
     P(18, { type: "cc_payment", amount: 7000 + Math.round(r() * 3000), description: "ICICI CARD BILL PAYMENT", merchant: "ICICI Credit Card", category: "Card Payment", accountId: "hdfc", toAccountId: "icici-cc" });
     P(20, { type: "transfer", amount: 3000, description: "ATM WDL HDFC KORAMANGALA", merchant: "ATM Withdrawal", category: "Transfer", accountId: "hdfc", toAccountId: "cash" });
-    P(22, { type: "income", amount: 15000 + Math.round(r() * 10000), description: "UPI-SCALE FLOW-MILESTONE", merchant: PROJECTS[(m + 1) % 4].client, category: "Client Payment", accountId: "kotak-biz", client: PROJECTS[(m + 1) % 4].client, project: PROJECTS[(m + 1) % 4].name }, "scaleflow");
+    P(22, { type: "income", amount: 15000 + Math.round(r() * 10000), description: "UPI-SCALE FLOW-MILESTONE", merchant: pj(m + 1).client, category: "Client Payment", accountId: "kotak-biz", client: pj(m + 1).client, project: pj(m + 1).name }, "scaleflow");
     P(24, { type: "expense", amount: 2400 + Math.round(r() * 2000), description: "GOOGLE ADS INDIA", merchant: "Google Ads", category: "Marketing", accountId: "kotak-biz" }, "scaleflow");
     P(26, { type: "income", amount: 380, description: "SB INTEREST CREDIT", merchant: "HDFC Bank", category: "Interest", accountId: "hdfc" });
 
@@ -84,10 +86,10 @@ export function buildDemoTransactions(now = new Date()): Transaction[] {
     const trans = ["UBER INDIA", "OLA", "Rapido", "IOCL Petrol"];
     for (let d = 1; d <= 28; d += 2) {
       const h = 9 + Math.floor(r() * 12);
-      P(d, { type: "expense", amount: Math.round(180 + r() * 520), description: `UPI-${food[Math.floor(r() * food.length)]}`, merchant: food[Math.floor(r() * food.length)], category: "Food & Dining", accountId: r() > 0.3 ? "gpay" : "cash" }, "personal", h);
-      if (d % 6 === 1) P(d, { type: "expense", amount: Math.round(900 + r() * 1400), description: `UPI-${groceries[Math.floor(r() * 4)]}`, merchant: groceries[Math.floor(r() * 4)], category: "Groceries", accountId: "gpay" }, "personal", h);
-      if (d % 4 === 3) P(d, { type: "expense", amount: Math.round(120 + r() * 380), description: `UPI-${trans[Math.floor(r() * 4)]}`, merchant: trans[Math.floor(r() * 4)], category: "Transport", accountId: "gpay" }, "personal", h);
-      if (d % 9 === 0) P(d, { type: "expense", amount: Math.round(800 + r() * 3500), description: shop[Math.floor(r() * 4)], merchant: shop[Math.floor(r() * 4)], category: "Shopping", accountId: "icici-cc" }, "personal", h);
+      P(d, { type: "expense", amount: Math.round(180 + r() * 520), description: `UPI-${pick(food, r)}`, merchant: pick(food, r), category: "Food & Dining", accountId: r() > 0.3 ? "gpay" : "cash" }, "personal", h);
+      if (d % 6 === 1) P(d, { type: "expense", amount: Math.round(900 + r() * 1400), description: `UPI-${pick(groceries, r)}`, merchant: pick(groceries, r), category: "Groceries", accountId: "gpay" }, "personal", h);
+      if (d % 4 === 3) P(d, { type: "expense", amount: Math.round(120 + r() * 380), description: `UPI-${pick(trans, r)}`, merchant: pick(trans, r), category: "Transport", accountId: "gpay" }, "personal", h);
+      if (d % 9 === 0) P(d, { type: "expense", amount: Math.round(800 + r() * 3500), description: pick(shop, r), merchant: pick(shop, r), category: "Shopping", accountId: "icici-cc" }, "personal", h);
     }
     P(19, { type: "expense", amount: 650 + Math.round(r() * 1200), description: "APOLLO PHARMACY", merchant: "Apollo Pharmacy", category: "Health", accountId: "gpay" });
     P(21, { type: "expense", amount: 900 + Math.round(r() * 800), description: "PVR CINEMAS / BOOKMYSHOW", merchant: "BookMyShow", category: "Entertainment", accountId: "icici-cc" });

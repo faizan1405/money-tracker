@@ -74,7 +74,7 @@ export function answer(q: string, txns: Transaction[], dues: Due[], recurring: R
   // default: most spend
   const cats = byCategory(month).slice(0, 5);
   return {
-    text: cats.length ? `Your biggest spending category this month is ${cats[0].name} at ${formatINR(cats[0].value)}.` : "No spending recorded this month yet.",
+    text: cats.length ? `Your biggest spending category this month is ${cats[0]!.name} at ${formatINR(cats[0]!.value)}.` : "No spending recorded this month yet.",
     rows: cats.map((c) => ({ label: c.name, value: formatINR(c.value) })),
   };
 }

@@ -122,6 +122,7 @@ export function monthly(txns: Transaction[], months = 6, now = new Date()) {
     const i = idx.get(`${d.getFullYear()}-${d.getMonth()}`);
     if (i === undefined) continue;
     const r = rows[i];
+    if (!r) continue;
     const inc = incomeOf(t);
     const exp = expenseOf(t);
     r.income += inc;
