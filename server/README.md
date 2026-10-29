@@ -1,4 +1,4 @@
-# Money Hub AI — API server (Phase 2B)
+# Money Hub AI — API server (Phase 3A)
 
 Node 20+ · TypeScript · Express · Prisma · MySQL/MariaDB. Separate from the Lovable frontend in `../src`.
 API contract: `../src/lib/api/contracts.ts` and `../docs/BACKEND_HANDOFF.md`.
@@ -14,7 +14,12 @@ src/money.ts                  rupee ↔ paise conversion (rejects > 2 decimals)
 src/dto.ts                    zod schemas + DTO mapping
 src/repo/prisma.ts            MySQL storage (atomic batches, ownership on every query)
 src/repo/memory.ts            test-only storage
-src/ai/index.ts               interfaces for the later OpenRouter phase (routes return 501)
+src/ai/openrouter.ts          OpenRouter client: ZDR + data_collection=deny, strict JSON schema, retries, timeout, cost caps
+src/ai/categorize.ts          batched categorisation (fast model, stronger model only for low-confidence rows)
+src/statements/parse.ts       deterministic CSV / PDF-text parsing → dates, paise, refs, balances (never from AI)
+src/statements/pdf.ts         in-memory PDF text extraction (pdfjs), password support, scanned-PDF detection
+src/statements/pipeline.ts    duplicates, saved rules, AI suggestions, review flags, reconciliation
+src/statements/routes.ts      upload / review / approve / discard endpoints
 scripts/create-owner.ts       one-time owner setup (no public sign-up)
 test/                         automated tests
 ```
@@ -82,6 +87,20 @@ On a VPS: same steps, run with `pm2 start dist/index.js --name moneyhub`, put Ng
 - Restore: `gunzip < file.sql.gz | mysql DB`, then `npx prisma migrate deploy` to confirm the schema is current.
 - Test a restore into a scratch database at least once.
 
+## Statement import (Phase 3A)
+1. `POST /api/statements` (multipart `file`, `accountId`, optional `password`) — PDF (text) or CSV, max `UPLOAD_MAX_MB`. The file stays in memory, is hashed, parsed, then zeroed; it is never written to disk or sent anywhere.
+2. Rows are checked against the ledger (same bank ref = already imported; different refs = never a duplicate; no ref + same day/amount = "possible", shown for review), then your saved rules, then AI for the rest.
+3. AI receives only masked narration (long numbers, emails removed) and direction — never amounts, balances or account numbers. Output must match a strict JSON schema; if the AI contradicts the statement's in/out direction, the statement wins.
+4. Reconciliation (opening + credits − debits = closing, and every running balance) is computed in integer paise.
+5. `POST /api/statements/:id/review` saves only approved rows in one DB transaction and clears the pending rows. Corrections with "remember" become explicit rules.
+
+Set `OPENROUTER_API_KEY` to enable AI (see `.env.example` for models and spending caps). Without it, imports still work: rules apply and other rows are marked "Needs a category".
+Defaults `openai/gpt-4.1-mini` (fast) and `openai/gpt-5-mini` (escalation) were picked from OpenRouter's zero-data-retention endpoint list with structured-output support; re-check if you change them. The daily cost cap is per process and resets on restart.
+
+Not supported yet: scanned/image statements (OCR), Excel files. They return a clear error.
+
+Run `npm run db:migrate` after updating (adds migration `0002_statement_review`).
+
 ## Not implemented yet (endpoints return 501)
-Statement upload/processing, AI chat/categorisation (OpenRouter), invoices, clients, projects, reports.
+AI chat assistant, invoices, clients, projects, reports.
 Tables for invoices, client payments, projects, loan repayments, imports and audit logs already exist.
