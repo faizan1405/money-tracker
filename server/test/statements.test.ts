@@ -135,6 +135,8 @@ describe("statement import API", () => {
     expect(list.every((t) => t.source === "statement")).toBe(true);
     expect((await repo.getCollection(ctx.owner.id, "rules"))[0]).toMatchObject({ match: "Chai Point", category: "Snacks" });
 
+    // Retention: pending rows are deleted once the import is completed.
+    expect((await repo.getImport(ctx.owner.id, imp.id))!.rows ?? null).toBeNull();
     // Second approval of the same import is refused.
     expect((await decide([{ id: id("RAHUL"), decision: "accept" }])).status).toBe(409);
 

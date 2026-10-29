@@ -42,7 +42,7 @@ function importFromDb(i: DbImport, withRows = true): ImportRec {
     rows: withRows ? ((i.rows as unknown as ReviewRow[] | null) ?? null) : null,
   };
 }
-const json = (v: unknown) => (v == null ? Prisma.JsonNull : (v as Prisma.InputJsonValue));
+const json = (v: unknown) => (v == null ? Prisma.DbNull : (v as Prisma.InputJsonValue)); // SQL NULL, so cleared rows really are gone
 function isUniqueViolation(e: unknown) {
   return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
 }
@@ -276,7 +276,7 @@ export class PrismaRepo implements Repo {
     try {
       return await this.db.$transaction(async (tx) => {
         // Conditional status flip first: a second concurrent approval updates 0 rows and aborts.
-        const n = await tx.statementImport.updateMany({ where: { id, ownerId, status: "needs_review" }, data: { status: "completed", rows: Prisma.JsonNull, summary: json(summary) } });
+        const n = await tx.statementImport.updateMany({ where: { id, ownerId, status: "needs_review" }, data: { status: "completed", rows: Prisma.DbNull, summary: json(summary) } });
         if (!n.count) throw new ConflictError("This statement has already been saved");
         const out: TxnRec[] = [];
         for (const t of txns) out.push(txnFromDb(await tx.transaction.create({ data: { ...txnToDb(ownerId, t), importId: id } })));
