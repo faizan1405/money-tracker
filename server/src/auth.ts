@@ -46,32 +46,34 @@ declare module "express-serve-static-core" {
   interface Request {
     ownerId?: string;
     tokenHash?: string;
+    sessionExpiresAt?: Date;
   }
 }
 
-function readToken(req: Request): { token: string; via: "bearer" | "cookie" } | null {
-  const h = req.get("authorization");
-  if (h?.startsWith("Bearer ")) return { token: h.slice(7).trim(), via: "bearer" };
+/** Sessions travel only in the HttpOnly cookie — one auth method, never readable by page scripts. */
+function readToken(req: Request): string | null {
   const c = (req.cookies as Record<string, string> | undefined)?.[COOKIE];
-  return c ? { token: c, via: "cookie" } : null;
+  return c || null;
 }
 
 const SAFE = new Set(["GET", "HEAD", "OPTIONS"]);
 
+export function assertOrigin(req: Request, cfg: AppConfig) {
+  const origin = req.get("origin");
+  if (!origin || !cfg.corsOrigins.includes(origin)) throw new HttpError(403, "Request origin not allowed", "csrf");
+}
+
 /**
- * Requires a valid, unexpired session. Accepts the HttpOnly cookie or a Bearer token (current frontend).
- * CSRF: cookie-authenticated writes must come from an allowed Origin. Bearer requests can't be forged cross-site.
+ * Requires a valid, unexpired session cookie.
+ * CSRF: every state-changing request must carry an Origin from the CORS allowlist (plus SameSite on the cookie).
  */
 export function requireAuth(repo: Repo, cfg: AppConfig, now: () => number = Date.now) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const t = readToken(req);
       if (!t) throw new HttpError(401, "Please sign in", "unauthenticated");
-      if (t.via === "cookie" && !SAFE.has(req.method)) {
-        const origin = req.get("origin");
-        if (!origin || !cfg.corsOrigins.includes(origin)) throw new HttpError(403, "Request origin not allowed", "csrf");
-      }
-      const hash = sha256(t.token);
+      if (!SAFE.has(req.method)) assertOrigin(req, cfg);
+      const hash = sha256(t);
       const s = await repo.findSession(hash);
       if (!s) throw new HttpError(401, "Please sign in", "unauthenticated");
       if (s.expiresAt.getTime() <= now()) {
@@ -81,6 +83,7 @@ export function requireAuth(repo: Repo, cfg: AppConfig, now: () => number = Date
       }
       req.ownerId = s.ownerId;
       req.tokenHash = hash;
+      req.sessionExpiresAt = s.expiresAt;
       next();
     } catch (e) {
       next(e);
