@@ -10,33 +10,167 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AccountsRouteImport } from './routes/accounts'
+import { Route as AnalyticsRouteImport } from './routes/analytics'
+import { Route as AssistantRouteImport } from './routes/assistant'
+import { Route as BudgetsRouteImport } from './routes/budgets'
+import { Route as LoansRouteImport } from './routes/loans'
+import { Route as MoneyInRouteImport } from './routes/money-in'
+import { Route as MoneyOutRouteImport } from './routes/money-out'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as StatementStudioRouteImport } from './routes/statement-studio'
+import { Route as TransactionsRouteImport } from './routes/transactions'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AccountsRoute = AccountsRouteImport.update({
+  id: '/accounts',
+  path: '/accounts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AnalyticsRoute = AnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AssistantRoute = AssistantRouteImport.update({
+  id: '/assistant',
+  path: '/assistant',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BudgetsRoute = BudgetsRouteImport.update({
+  id: '/budgets',
+  path: '/budgets',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoansRoute = LoansRouteImport.update({
+  id: '/loans',
+  path: '/loans',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MoneyInRoute = MoneyInRouteImport.update({
+  id: '/money-in',
+  path: '/money-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MoneyOutRoute = MoneyOutRouteImport.update({
+  id: '/money-out',
+  path: '/money-out',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StatementStudioRoute = StatementStudioRouteImport.update({
+  id: '/statement-studio',
+  path: '/statement-studio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TransactionsRoute = TransactionsRouteImport.update({
+  id: '/transactions',
+  path: '/transactions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/accounts': typeof AccountsRoute
+  '/analytics': typeof AnalyticsRoute
+  '/assistant': typeof AssistantRoute
+  '/budgets': typeof BudgetsRoute
+  '/loans': typeof LoansRoute
+  '/money-in': typeof MoneyInRoute
+  '/money-out': typeof MoneyOutRoute
+  '/settings': typeof SettingsRoute
+  '/statement-studio': typeof StatementStudioRoute
+  '/transactions': typeof TransactionsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/accounts': typeof AccountsRoute
+  '/analytics': typeof AnalyticsRoute
+  '/assistant': typeof AssistantRoute
+  '/budgets': typeof BudgetsRoute
+  '/loans': typeof LoansRoute
+  '/money-in': typeof MoneyInRoute
+  '/money-out': typeof MoneyOutRoute
+  '/settings': typeof SettingsRoute
+  '/statement-studio': typeof StatementStudioRoute
+  '/transactions': typeof TransactionsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/accounts': typeof AccountsRoute
+  '/analytics': typeof AnalyticsRoute
+  '/assistant': typeof AssistantRoute
+  '/budgets': typeof BudgetsRoute
+  '/loans': typeof LoansRoute
+  '/money-in': typeof MoneyInRoute
+  '/money-out': typeof MoneyOutRoute
+  '/settings': typeof SettingsRoute
+  '/statement-studio': typeof StatementStudioRoute
+  '/transactions': typeof TransactionsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/accounts'
+    | '/analytics'
+    | '/assistant'
+    | '/budgets'
+    | '/loans'
+    | '/money-in'
+    | '/money-out'
+    | '/settings'
+    | '/statement-studio'
+    | '/transactions'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/accounts'
+    | '/analytics'
+    | '/assistant'
+    | '/budgets'
+    | '/loans'
+    | '/money-in'
+    | '/money-out'
+    | '/settings'
+    | '/statement-studio'
+    | '/transactions'
+  id:
+    | '__root__'
+    | '/'
+    | '/accounts'
+    | '/analytics'
+    | '/assistant'
+    | '/budgets'
+    | '/loans'
+    | '/money-in'
+    | '/money-out'
+    | '/settings'
+    | '/statement-studio'
+    | '/transactions'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AccountsRoute: typeof AccountsRoute
+  AnalyticsRoute: typeof AnalyticsRoute
+  AssistantRoute: typeof AssistantRoute
+  BudgetsRoute: typeof BudgetsRoute
+  LoansRoute: typeof LoansRoute
+  MoneyInRoute: typeof MoneyInRoute
+  MoneyOutRoute: typeof MoneyOutRoute
+  SettingsRoute: typeof SettingsRoute
+  StatementStudioRoute: typeof StatementStudioRoute
+  TransactionsRoute: typeof TransactionsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +182,91 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/accounts': {
+      id: '/accounts'
+      path: '/accounts'
+      fullPath: '/accounts'
+      preLoaderRoute: typeof AccountsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/analytics': {
+      id: '/analytics'
+      path: '/analytics'
+      fullPath: '/analytics'
+      preLoaderRoute: typeof AnalyticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/assistant': {
+      id: '/assistant'
+      path: '/assistant'
+      fullPath: '/assistant'
+      preLoaderRoute: typeof AssistantRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/budgets': {
+      id: '/budgets'
+      path: '/budgets'
+      fullPath: '/budgets'
+      preLoaderRoute: typeof BudgetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/loans': {
+      id: '/loans'
+      path: '/loans'
+      fullPath: '/loans'
+      preLoaderRoute: typeof LoansRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/money-in': {
+      id: '/money-in'
+      path: '/money-in'
+      fullPath: '/money-in'
+      preLoaderRoute: typeof MoneyInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/money-out': {
+      id: '/money-out'
+      path: '/money-out'
+      fullPath: '/money-out'
+      preLoaderRoute: typeof MoneyOutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/statement-studio': {
+      id: '/statement-studio'
+      path: '/statement-studio'
+      fullPath: '/statement-studio'
+      preLoaderRoute: typeof StatementStudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/transactions': {
+      id: '/transactions'
+      path: '/transactions'
+      fullPath: '/transactions'
+      preLoaderRoute: typeof TransactionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccountsRoute: AccountsRoute,
+  AnalyticsRoute: AnalyticsRoute,
+  AssistantRoute: AssistantRoute,
+  BudgetsRoute: BudgetsRoute,
+  LoansRoute: LoansRoute,
+  MoneyInRoute: MoneyInRoute,
+  MoneyOutRoute: MoneyOutRoute,
+  SettingsRoute: SettingsRoute,
+  StatementStudioRoute: StatementStudioRoute,
+  TransactionsRoute: TransactionsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
