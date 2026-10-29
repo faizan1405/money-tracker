@@ -19,6 +19,8 @@ export function formatDate(iso: string, opts: Intl.DateTimeFormatOptions = { day
 }
 
 export function formatDateTime(iso: string) {
+  // Date-only values (stored by the server as a calendar day) have no real time — don't invent one.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return formatDate(iso, { day: "2-digit", month: "short" });
   return new Date(iso).toLocaleString("en-IN", {
     timeZone: "Asia/Kolkata",
     day: "2-digit",
