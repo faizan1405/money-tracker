@@ -7,7 +7,7 @@ import { inr, amountsIn } from "../src/assistant/money.js";
 import { previousPeriod, resolvePeriod } from "../src/assistant/periods.js";
 import { hashPassword } from "../src/auth.js";
 import type { Repo } from "../src/repo/types.js";
-import { config, cookieToken, makeRepo, ORIGIN, setup, tx } from "./helpers.js";
+import { config, cookieToken, makeRepo, onPrisma, ORIGIN, setup, tx } from "./helpers.js";
 
 // Fixed clock: 20 Oct 2026, 11:30 India time.
 const NOW = Date.parse("2026-10-20T06:00:00Z");
@@ -188,6 +188,7 @@ describe("assistant (read-only finance answers)", () => {
     expect((await request(app).post("/api/ai/chat").set("Origin", ORIGIN).send({ message: "hi" })).status).toBe(401); // no/expired session
     ai.queue.push({ metric: "summary" });
     const mine = await chat(app, ctx.auth, { message: "Summary please" });
+    if (onPrisma) return; // the MySQL repo allows only one owner by design; isolation is covered on the memory repo
     await repo.createOwner({ email: "other@test.in", name: "Other", passwordHash: await hashPassword("other password 123") });
     const login = await request(app).post("/api/auth/login").set("Origin", ORIGIN).send({ email: "other@test.in", password: "other password 123" });
     const other = { Cookie: `mh_session=${cookieToken(login.headers["set-cookie"])}`, Origin: ORIGIN };
