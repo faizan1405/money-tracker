@@ -76,6 +76,21 @@ export type CollectionKey = "accounts" | "dues" | "budgets" | "goals" | "recurri
 
 // ---- Statement imports + AI (processed server-side via OpenRouter) ----
 export type ImportStatus = "uploaded" | "processing" | "needs_review" | "completed" | "failed";
+export interface ImportSummary {
+  found: number;
+  duplicates: number;
+  flagged: number;
+  period?: { from: string; to: string };
+  accountLast4?: string;
+  accountMatches?: boolean;
+  /** Computed by the server from statement numbers only; AI never touches balances. */
+  reconciliation: { status: "balanced" | "mismatch" | "unclear" | "unavailable"; opening?: number; closing?: number; credits: number; debits: number; difference?: number; brokenRows: number[] };
+  ai: { status: "used" | "not_configured" | "failed" | "not_needed"; message?: string; model?: string; costUsd?: number; calls?: number };
+  warnings: string[];
+  sameFileImportedBefore?: boolean;
+  created?: number;
+  skipped?: number;
+}
 export interface StatementImport {
   id: string;
   fileName: string;
@@ -84,19 +99,39 @@ export interface StatementImport {
   status: ImportStatus;
   createdAt: string;
   error?: string;
-  summary?: { found: number; duplicates: number; flagged: number };
+  summary?: ImportSummary;
 }
 export interface ReviewItem {
   id: string;
   importId: string;
+  line: number;
+  date: string;
+  time?: string;
+  direction: "debit" | "credit" | "unknown";
+  amount: number;
+  ref?: string;
+  balance?: number;
+  description: string;
   proposed: CreateTransaction;
-  confidence: number; // 0..1, from AI
-  reason?: string; // why AI chose this category
+  confidence: number; // 0..1
+  reason?: string;
+  source: "rule" | "ai" | "none";
+  flags: string[];
   duplicate: "none" | "exact" | "possible";
   matchedTransactionId?: string;
-  decision?: "accept" | "skip" | "edit";
 }
-export interface ReviewDecision { id: string; decision: "accept" | "skip"; edited?: Partial<CreateTransaction> }
+export interface ReviewEdit {
+  type?: TxnType;
+  category?: string;
+  subcategory?: string;
+  merchant?: string;
+  description?: string;
+  workspace?: WorkspaceId | string;
+  /** For transfers / card payments: the user's other account. */
+  otherAccountId?: string;
+  interest?: number;
+}
+export interface ReviewDecision { id: string; decision: "accept" | "skip"; edited?: ReviewEdit; remember?: boolean }
 
 export interface ChatMessage { role: "user" | "assistant"; content: string }
 export interface ChatRequest { messages: ChatMessage[]; workspace?: WorkspaceId | "all" }

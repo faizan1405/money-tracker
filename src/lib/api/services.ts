@@ -50,17 +50,19 @@ export const analyticsApi = {
 
 /** Statement imports — AI extraction runs on the backend (OpenRouter key never reaches the browser). */
 export const statementsApi = {
-  upload: (file: File, accountId: string, workspace: string) => {
+  upload: (file: File, accountId: string, workspace: string, password?: string) => {
     const fd = new FormData();
-    fd.append("file", file);
     fd.append("accountId", accountId);
     fd.append("workspace", workspace);
+    if (password) fd.append("password", password); // used once on the server, never stored
+    fd.append("file", file);
     return apiRequest<StatementImport>("/api/statements", { method: "POST", body: fd });
   },
   list: () => apiRequest<StatementImport[]>("/api/statements"),
   get: (id: string) => apiRequest<StatementImport>(`/api/statements/${encodeURIComponent(id)}`),
   review: (id: string) => apiRequest<ReviewItem[]>(`/api/statements/${encodeURIComponent(id)}/review`),
-  decide: (id: string, decisions: ReviewDecision[]) => apiRequest<{ created: number; skipped: number }>(`/api/statements/${encodeURIComponent(id)}/review`, { method: "POST", body: { decisions } }),
+  discard: (id: string) => apiRequest<StatementImport>(`/api/statements/${encodeURIComponent(id)}/discard`, { method: "POST" }),
+  decide: (id: string, decisions: ReviewDecision[]) => apiRequest<{ created: number; skipped: number; rulesLearned: number }>(`/api/statements/${encodeURIComponent(id)}/review`, { method: "POST", body: { decisions } }),
 };
 
 export const aiApi = { chat: (b: ChatRequest) => apiRequest<ChatResponse>("/api/ai/chat", { method: "POST", body: b }) };
