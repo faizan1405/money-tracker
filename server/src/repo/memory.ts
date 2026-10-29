@@ -127,7 +127,7 @@ export class MemoryRepo implements Repo {
   }
 
   // ---------- AI usage ----------
-  private usage: (AiSettle & { id: string; ownerId: string; day: string; month: string; reservedMicroUsd: number; status: "reserved" | "settled" | "failed"; feature: string })[] = [];
+  private usage: (Omit<AiSettle, "status"> & { id: string; ownerId: string; day: string; month: string; reservedMicroUsd: number; status: "reserved" | "settled" | "failed"; feature: string })[] = [];
   private spendOf(ownerId: string, pick: (u: { day: string; month: string }) => boolean) {
     return this.usage.filter((u) => u.ownerId === ownerId && pick(u)).reduce((s, u) => s + (u.status === "reserved" ? u.reservedMicroUsd : u.costMicroUsd), 0);
   }
