@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   ConflictError, DEFAULT_WORKSPACES, DuplicateRefError, type AccountRec, type CategoryRec, type CollectionKey, type Collections,
   type OwnerRec, type Repo, type SessionRec, type TxnFilter, type TxnInput, type TxnRec, type WorkspaceRec,
+  type AiReserve, type AiSettle, type AiUsageSummary, type ChatMessageRec, type ConversationRec,
 } from "./types.js";
 import type { ImportRec } from "../statements/types.js";
 
@@ -123,5 +124,68 @@ export class MemoryRepo implements Repo {
     if (this.failNextComplete) { this.failNextComplete = false; this.txns.set(ownerId, before); throw new Error("simulated db failure"); }
     Object.assign(r, { status: "completed", rows: null, summary: structuredClone(summary) });
     return created;
+  }
+
+  // ---------- AI usage ----------
+  private usage: (Omit<AiSettle, "status"> & { id: string; ownerId: string; day: string; month: string; reservedMicroUsd: number; status: "reserved" | "settled" | "failed"; feature: string })[] = [];
+  private spendOf(ownerId: string, pick: (u: { day: string; month: string }) => boolean) {
+    return this.usage.filter((u) => u.ownerId === ownerId && pick(u)).reduce((s, u) => s + (u.status === "reserved" ? u.reservedMicroUsd : u.costMicroUsd), 0);
+  }
+  async reserveAi(ownerId: string, r: AiReserve) {
+    // Single-threaded JS: check + insert happen with no await in between, so this is atomic.
+    if (this.spendOf(ownerId, (u) => u.day === r.day) + r.reserveMicroUsd > r.dailyLimitMicroUsd) return { ok: false as const, limit: "daily" as const };
+    if (this.spendOf(ownerId, (u) => u.month === r.month) + r.reserveMicroUsd > r.monthlyLimitMicroUsd) return { ok: false as const, limit: "monthly" as const };
+    const id = randomUUID();
+    this.usage.push({ id, ownerId, feature: r.feature, model: r.model, day: r.day, month: r.month, reservedMicroUsd: r.reserveMicroUsd, status: "reserved", costMicroUsd: 0, promptTokens: 0, completionTokens: 0, ms: 0 });
+    return { ok: true as const, id };
+  }
+  async settleAi(ownerId: string, id: string, s: AiSettle) {
+    const u = this.usage.find((x) => x.id === id && x.ownerId === ownerId);
+    if (u) Object.assign(u, s);
+  }
+  async aiUsage(ownerId: string, day: string, month: string): Promise<AiUsageSummary> {
+    const m = this.usage.filter((u) => u.ownerId === ownerId && u.month === month);
+    return {
+      dayMicroUsd: this.spendOf(ownerId, (u) => u.day === day), monthMicroUsd: this.spendOf(ownerId, (u) => u.month === month),
+      requestsToday: m.filter((u) => u.day === day).length, requestsMonth: m.length,
+      promptTokensMonth: m.reduce((s, u) => s + u.promptTokens, 0), completionTokensMonth: m.reduce((s, u) => s + u.completionTokens, 0),
+    };
+  }
+
+  // ---------- Conversations ----------
+  private convs: (ConversationRec & { ownerId: string; messages: ChatMessageRec[] })[] = [];
+  async listConversations(ownerId: string) {
+    return this.convs.filter((c) => c.ownerId === ownerId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map(({ id, title, createdAt, updatedAt }) => ({ id, title, createdAt, updatedAt }));
+  }
+  async getConversation(ownerId: string, id: string) {
+    const c = this.convs.find((x) => x.id === id && x.ownerId === ownerId);
+    if (!c) return null;
+    const { ownerId: _o, ...rest } = structuredClone(c);
+    return rest;
+  }
+  async createConversation(ownerId: string, title: string) {
+    const now = new Date().toISOString();
+    const c = { id: randomUUID(), ownerId, title, createdAt: now, updatedAt: now, messages: [] as ChatMessageRec[] };
+    this.convs.push(c);
+    return { id: c.id, title, createdAt: now, updatedAt: now };
+  }
+  async addMessages(ownerId: string, conversationId: string, msgs: Omit<ChatMessageRec, "id" | "createdAt">[]) {
+    const c = this.convs.find((x) => x.id === conversationId && x.ownerId === ownerId);
+    if (!c) throw new ConflictError("Conversation not found");
+    const now = new Date().toISOString();
+    const out = msgs.map((m) => ({ ...structuredClone(m), id: randomUUID(), createdAt: now }));
+    c.messages.push(...out);
+    c.updatedAt = now;
+    return structuredClone(out);
+  }
+  async deleteConversation(ownerId: string, id: string) {
+    const n = this.convs.length;
+    this.convs = this.convs.filter((c) => !(c.id === id && c.ownerId === ownerId));
+    return this.convs.length < n;
+  }
+  async purgeConversations(ownerId: string, before: Date) {
+    const n = this.convs.length;
+    this.convs = this.convs.filter((c) => !(c.ownerId === ownerId && c.updatedAt < before.toISOString()));
+    return n - this.convs.length;
   }
 }

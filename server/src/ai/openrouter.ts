@@ -14,6 +14,9 @@ export interface OpenRouterConfig {
   maxRetries: number;
   maxCostPerStatementUsd: number;
   dailyCostLimitUsd: number;
+  /** Persistent limits (enforced through a BudgetGuard backed by MySQL). */
+  monthlyCostLimitUsd?: number;
+  maxCostPerRequestUsd?: number;
   baseUrl?: string;
   appUrl?: string;
 }
@@ -36,6 +39,14 @@ export interface JsonRequest<T> {
   maxTokens?: number;
 }
 
+/** Who is spending and on what; required for the persistent budget. */
+export interface AiCallCtx { ownerId: string; feature: "statement" | "assistant" | "insights" | "smoke" }
+/** Reserve before every HTTP attempt, settle after. Implemented by ai/budget.ts on top of the database. */
+export interface BudgetGuard {
+  reserve(ctx: AiCallCtx, model: string): Promise<string>;
+  settle(ctx: AiCallCtx, id: string, usage: Usage | null): Promise<void>;
+}
+
 export interface AiLogger { usage(u: Usage): void; error(msg: string, meta: Record<string, unknown>): void }
 const consoleLogger: AiLogger = {
   usage: (u) => console.info(`[ai] model=${u.model} in=${u.promptTokens} out=${u.completionTokens} cost=$${u.costUsd.toFixed(6)} ms=${u.ms}`),
@@ -45,16 +56,26 @@ const consoleLogger: AiLogger = {
 export class OpenRouterClient {
   private spentToday = 0;
   private day = "";
+  /** When set (production), every call needs an AiCallCtx and is checked against persistent limits. */
+  guard: BudgetGuard | null = null;
   constructor(public cfg: OpenRouterConfig, private fetchImpl: FetchLike = fetch as unknown as FetchLike, private log: AiLogger = consoleLogger, private sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))) {}
+
+  /** Same transport, logger and budget guard with different limits (e.g. a shorter timeout for chat). */
+  withOptions(patch: Partial<OpenRouterConfig>) {
+    const c = new OpenRouterClient({ ...this.cfg, ...patch }, this.fetchImpl, this.log, this.sleep);
+    c.guard = this.guard;
+    return c;
+  }
 
   /** Cost already spent today on this server process (best effort; resets on restart). */
   spent() { this.rollDay(); return this.spentToday; }
   private rollDay() { const d = new Date().toISOString().slice(0, 10); if (d !== this.day) { this.day = d; this.spentToday = 0; } }
 
-  async json<T>(req: JsonRequest<T>, budget: { spentUsd: number }): Promise<{ data: T; usage: Usage }> {
+  async json<T>(req: JsonRequest<T>, budget: { spentUsd: number; limitUsd?: number }, ctx?: AiCallCtx): Promise<{ data: T; usage: Usage }> {
     this.rollDay();
-    if (this.spentToday >= this.cfg.dailyCostLimitUsd) throw new AiError("Today's AI spending limit has been reached.", "budget_exceeded");
-    if (budget.spentUsd >= this.cfg.maxCostPerStatementUsd) throw new AiError("This statement reached its AI spending limit.", "budget_exceeded");
+    if (this.guard && !ctx) throw new AiError("AI call without an owner context.", "provider_error");
+    if (!this.guard && this.spentToday >= this.cfg.dailyCostLimitUsd) throw new AiError("Today's AI spending limit has been reached.", "budget_exceeded");
+    if (budget.spentUsd >= (budget.limitUsd ?? this.cfg.maxCostPerStatementUsd)) throw new AiError("This request reached its AI spending limit.", "budget_exceeded");
 
     const body = JSON.stringify({
       model: req.model,
@@ -68,6 +89,8 @@ export class OpenRouterClient {
     let lastErr: AiError | null = null;
     for (let attempt = 0; attempt <= this.cfg.maxRetries; attempt++) {
       if (attempt) await this.sleep(Math.min(8000, 500 * 2 ** (attempt - 1)));
+      const reservation = this.guard && ctx ? await this.guard.reserve(ctx, req.model) : null; // throws budget_exceeded
+      let settled: Usage | null = null;
       const ctl = new AbortController();
       const timer = setTimeout(() => ctl.abort(), this.cfg.timeoutMs);
       const t0 = Date.now();
@@ -99,6 +122,8 @@ export class OpenRouterClient {
           model: payload.model ?? req.model, promptTokens: payload.usage?.prompt_tokens ?? 0,
           completionTokens: payload.usage?.completion_tokens ?? 0, costUsd: payload.usage?.cost ?? 0, ms: Date.now() - t0,
         };
+        settled = usage;
+        if (this.cfg.maxCostPerRequestUsd && usage.costUsd > this.cfg.maxCostPerRequestUsd) this.log.error("request cost above per-request limit", { model: usage.model, costUsd: usage.costUsd });
         this.spentToday += usage.costUsd;
         budget.spentUsd += usage.costUsd;
         this.log.usage(usage);
@@ -115,6 +140,7 @@ export class OpenRouterClient {
           : new AiError("Couldn't reach the AI service.", "provider_error");
       } finally {
         clearTimeout(timer);
+        if (reservation && ctx) await this.guard!.settle(ctx, reservation, settled).catch((e: unknown) => this.log.error("could not record AI usage", { err: String(e) }));
       }
     }
     this.log.error("request failed after retries", { model: req.model, code: lastErr?.code });

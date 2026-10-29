@@ -116,7 +116,7 @@ export function registerStatementRoutes(app: Express, { repo, config, ai, owner,
       repo.listWorkspaces(id), repo.getCollection(id, "rules"), repo.listTxns(id, { accountId: account.id }), repo.listCategories(id),
     ]);
     const categories = [...new Set([...DEFAULT_CATEGORIES, ...cats.map((c) => c.name), ...(await repo.getCollection(id, "customCategories"))])];
-    const { rows, summary } = await buildReview(parsed, { account, workspaces, rules, ledger, categories, ai, maxAiRows: config.aiMaxRows ?? 400 });
+    const { rows, summary } = await buildReview(parsed, { account, workspaces, rules, ledger, categories, ai, maxAiRows: config.aiMaxRows ?? 400, ownerId: id });
     const before = await repo.findImportsByHash(id, account.id, fileHash);
     if (before.some((b) => b.status === "completed")) { summary.sameFileImportedBefore = true; summary.warnings.unshift("You've already imported this exact file into this account."); }
     // Supersede any earlier pending review of the same file so it can't be approved twice.

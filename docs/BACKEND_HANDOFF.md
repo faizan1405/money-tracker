@@ -42,7 +42,12 @@ Frontend types live in `src/lib/api/contracts.ts` (source of truth); calls in `s
 | GET | `/api/statements`, `/api/statements/:id` | — | `StatementImport[]` / `StatementImport` |
 | GET | `/api/statements/:id/review` | — | `ReviewItem[]` |
 | POST | `/api/statements/:id/review` | `{ decisions: ReviewDecision[] }` | `{ created, skipped, rulesLearned }` (409 if already saved) |
-| POST | `/api/ai/chat` | `ChatRequest` | `ChatResponse` |
+| POST | `/api/ai/chat` | `ChatRequest` (`message` ≤ 500 chars, `conversationId?`, `workspace?`) | `ChatResponse` (429 `ai_budget_exceeded`/`rate_limited`, 504 `ai_timeout`, 503 `ai_not_configured`) |
+| GET | `/api/ai/conversations` | — | `{ items: ConversationSummary[], retentionDays }` |
+| GET / DELETE | `/api/ai/conversations/:id` | — | `ConversationDetail` / 204 |
+| GET | `/api/ai/insights?workspace` | — | `InsightsResponse` (verified, no AI) |
+| POST | `/api/ai/insights/suggest` | `{ workspace }` | `InsightSuggestions` (AI ideas, each tied to an insight id) |
+| GET | `/api/ai/usage` | — | `AiUsageResponse` |
 
 Statement status flow: `uploaded → processing → needs_review → completed` (or `failed` with `error`). Nothing is written to the ledger until the review POST.
 

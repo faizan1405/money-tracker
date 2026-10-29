@@ -101,6 +101,19 @@ Not supported yet: scanned/image statements (OCR), Excel files. They return a cl
 
 Run `npm run db:migrate` after updating (adds migration `0002_statement_review`).
 
+## AI assistant & insights (Phase 3B)
+Flow: question → AI picks a query from a fixed list (strict JSON, enums only) → `src/assistant/queries.ts` calculates it from the
+owner's records with the ledger rules → AI explains the facts → the answer is rejected (plain backend summary used instead) if it
+mentions any ₹ amount the backend didn't compute. The assistant is read-only and never sees raw ledgers, account numbers or SQL.
+- Endpoints: `POST /api/ai/chat`, `GET/DELETE /api/ai/conversations[/:id]`, `GET /api/ai/insights`, `POST /api/ai/insights/suggest`, `GET /api/ai/usage`.
+- Follow-ups reuse the previous query (metric, period, workspace, term) stored with each answer — no amounts are sent back to the AI.
+- Spending limits live in MySQL (`AiUsage`): every AI request reserves `AI_MAX_COST_PER_REQUEST_USD` under a row lock, then
+  records the real cost. Daily (India time) and monthly limits survive restarts; usage rows hold model, tokens, cost and time only.
+- Conversations are deleted after `AI_CHAT_RETENTION_DAYS`.
+- Live check with fictional data: `TEST_DATABASE_URL=… OPENROUTER_API_KEY=… npm run ai:assistant-live` (wipes that database).
+
+Run `npm run db:migrate` after updating (adds migration `0003_ai_assistant`).
+
 ## Not implemented yet (endpoints return 501)
-AI chat assistant, invoices, clients, projects, reports.
+Invoices, clients, projects, reports.
 Tables for invoices, client payments, projects, loan repayments, imports and audit logs already exist.

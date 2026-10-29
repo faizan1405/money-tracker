@@ -39,6 +39,8 @@ export interface RequestOptions {
   signal?: AbortSignal | undefined;
   baseUrl?: string | undefined;
   fetchImpl?: typeof fetch | undefined;
+  /** Override for slow endpoints (AI chat). */
+  timeoutMs?: number | undefined;
 }
 
 /** Single entry point for every backend call. */
@@ -50,7 +52,7 @@ export async function apiRequest<T>(path: string, opts: RequestOptions = {}): Pr
   if (opts.body !== undefined && !isForm) headers["Content-Type"] = "application/json";
 
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort("timeout"), API_TIMEOUT_MS);
+  const timer = setTimeout(() => ctrl.abort("timeout"), opts.timeoutMs ?? API_TIMEOUT_MS);
   opts.signal?.addEventListener("abort", () => ctrl.abort());
   const doFetch = opts.fetchImpl ?? fetch;
 

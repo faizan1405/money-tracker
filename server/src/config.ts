@@ -16,6 +16,11 @@ const Env = z.object({
   AI_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
   AI_MAX_COST_PER_STATEMENT_USD: z.coerce.number().min(0).default(0.05),
   AI_DAILY_COST_LIMIT_USD: z.coerce.number().min(0).default(1),
+  AI_MONTHLY_COST_LIMIT_USD: z.coerce.number().min(0).default(10),
+  AI_MAX_COST_PER_REQUEST_USD: z.coerce.number().min(0).default(0.02),
+  AI_CHAT_TIMEOUT_MS: z.coerce.number().int().min(1000).max(40_000).default(20_000),
+  AI_CHAT_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(90),
+  AI_CHAT_PER_MINUTE: z.coerce.number().int().min(1).max(600).default(20),
   AI_MAX_ROWS_PER_STATEMENT: z.coerce.number().int().min(1).max(2000).default(400),
 });
 
@@ -33,6 +38,7 @@ export interface AppConfig {
   version: string;
   ai?: import("./ai/openrouter.js").OpenRouterConfig | null;
   aiMaxRows?: number;
+  assistant?: { chatTimeoutMs: number; retentionDays: number; perMinute: number };
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -46,12 +52,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     sessionTtlMs: e.SESSION_TTL_HOURS * 3600_000,
     crossSiteCookies: e.CROSS_SITE_COOKIES === "true",
     uploadMaxBytes: e.UPLOAD_MAX_MB * 1024 * 1024,
-    version: "0.3.0",
+    version: "0.4.0",
     aiMaxRows: e.AI_MAX_ROWS_PER_STATEMENT,
+    assistant: { chatTimeoutMs: e.AI_CHAT_TIMEOUT_MS, retentionDays: e.AI_CHAT_RETENTION_DAYS, perMinute: e.AI_CHAT_PER_MINUTE },
     ai: e.OPENROUTER_API_KEY?.trim()
       ? {
           apiKey: e.OPENROUTER_API_KEY.trim(), fastModel: e.AI_MODEL_FAST || e.OPENROUTER_MODEL || DEFAULT_FAST_MODEL, strongModel: e.AI_MODEL_STRONG || DEFAULT_STRONG_MODEL,
           timeoutMs: e.AI_TIMEOUT_MS, maxRetries: e.AI_MAX_RETRIES, maxCostPerStatementUsd: e.AI_MAX_COST_PER_STATEMENT_USD, dailyCostLimitUsd: e.AI_DAILY_COST_LIMIT_USD,
+          monthlyCostLimitUsd: e.AI_MONTHLY_COST_LIMIT_USD, maxCostPerRequestUsd: e.AI_MAX_COST_PER_REQUEST_USD,
           appUrl: origins[0],
         }
       : null,

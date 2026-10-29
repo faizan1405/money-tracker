@@ -5,14 +5,19 @@ import { Input } from "@/components/ui/input";
 import { useFinance, useScoped } from "@/lib/finance/store";
 import { SUGGESTED, answer, type Answer } from "@/lib/finance/assistant";
 import { cn } from "@/lib/utils";
-import { aiApi } from "@/lib/api/services";
+import { LiveAssistant } from "./LiveAssistant";
 
 type Msg = { role: "user"; text: string } | { role: "bot"; a: Answer };
 
-export function AssistantChat({ className }: { className?: string }) {
-  const { recurring, mode, workspace } = useFinance();
-  const live = mode === "production";
-  const [busy, setBusy] = useState(false);
+/** Production → server assistant (verified numbers + AI explanation). Preview → fixed rules over demo data. */
+export function AssistantChat({ className, full = false }: { className?: string; full?: boolean }) {
+  const { mode } = useFinance();
+  if (mode === "production") return <div className={cn("h-full min-h-0", className)}><LiveAssistant compact={!full} /></div>;
+  return <PreviewChat className={className} />;
+}
+
+function PreviewChat({ className }: { className?: string | undefined }) {
+  const { recurring } = useFinance();
   const { txns, dues } = useScoped();
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [q, setQ] = useState("");
@@ -21,25 +26,14 @@ export function AssistantChat({ className }: { className?: string }) {
   const ask = (text: string) => {
     if (!text.trim()) return;
     setQ("");
-    if (live) {
-      const history = [...msgs, { role: "user" as const, text }];
-      setMsgs(history);
-      setBusy(true);
-      aiApi
-        .chat({ workspace, messages: history.map((m) => (m.role === "user" ? { role: "user" as const, content: m.text } : { role: "assistant" as const, content: m.a.text })) })
-        .then((r) => setMsgs((m) => [...m, { role: "bot", a: { text: r.reply, rows: r.rows } as Answer }]))
-        .catch((e: unknown) => setMsgs((m) => [...m, { role: "bot", a: { text: `The assistant is unavailable: ${e instanceof Error ? e.message : "unknown error"}` } as Answer }]))
-        .finally(() => setBusy(false));
-    } else {
-      setMsgs((m) => [...m, { role: "user", text }, { role: "bot", a: answer(text, txns, dues, recurring) }]);
-    }
+    setMsgs((m) => [...m, { role: "user", text }, { role: "bot", a: answer(text, txns, dues, recurring) }]);
     setTimeout(() => end.current?.scrollIntoView({ behavior: "smooth" }), 50);
   };
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
       <div className="mb-3 rounded-xl bg-info-soft px-3 py-2 text-xs text-info">
-        {live ? "Answers come from the AI on your Money Hub server, using your real data." : "Preview Mode: answers are calculated directly from your demo data using fixed rules. The AI assistant arrives with the backend."}
+        Preview Mode: answers are calculated directly from your demo data using fixed rules. The AI assistant works in Live mode with your server.
       </div>
       <div className="flex-1 space-y-3 overflow-y-auto pr-1">
         {msgs.length === 0 && (
@@ -71,7 +65,6 @@ export function AssistantChat({ className }: { className?: string }) {
             </div>
           ),
         )}
-        {busy && <div className="text-xs text-muted-foreground">Thinking…</div>}
         <div ref={end} />
       </div>
       <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); ask(q); }}>

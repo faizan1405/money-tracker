@@ -14,6 +14,7 @@ export interface PipelineCtx {
   categories: string[];
   ai: OpenRouterClient | null;
   maxAiRows: number;
+  ownerId?: string;
 }
 
 const CREDIT_TYPES = new Set(["income", "refund", "transfer", "loan_disbursement"]);
@@ -101,7 +102,7 @@ export async function buildReview(p: ParsedStatement, ctx: PipelineCtx): Promise
   if (needAi.length && ctx.ai) {
     try {
       const batch = needAi.slice(0, ctx.maxAiRows);
-      const res = await categorizeWithAi(ctx.ai, batch.map((r, i) => ({ i, d: maskForAi(r.description), dir: r.direction })), ctx.categories, business.map((b) => b.name));
+      const res = await categorizeWithAi(ctx.ai, batch.map((r, i) => ({ i, d: maskForAi(r.description), dir: r.direction })), ctx.categories, business.map((b) => b.name), ctx.ownerId ? { ownerId: ctx.ownerId, feature: "statement" } : undefined);
       for (const s of res.items) {
         const r = batch[s.i];
         if (!r) continue;

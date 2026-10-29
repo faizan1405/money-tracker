@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AiError, type OpenRouterClient } from "./openrouter.js";
+import { AiError, type AiCallCtx, type OpenRouterClient } from "./openrouter.js";
 
 /** Types the AI may suggest. Amounts, dates, refs and balances are never asked of or taken from the model. */
 export const AI_TYPES = ["income", "expense", "transfer", "refund", "loan_repayment", "loan_disbursement", "cc_payment"] as const;
@@ -48,14 +48,14 @@ Rules:
 export interface CategorizeResult { items: Suggestion[]; costUsd: number; calls: number; model: string }
 
 /** Batches lines, validates strict JSON, and escalates only low-confidence lines to the stronger model. */
-export async function categorizeWithAi(client: OpenRouterClient, lines: CategorizeInput[], categories: string[], businessNames: string[]): Promise<CategorizeResult> {
+export async function categorizeWithAi(client: OpenRouterClient, lines: CategorizeInput[], categories: string[], businessNames: string[], ctx?: AiCallCtx): Promise<CategorizeResult> {
   const budget = { spentUsd: 0 };
   const out = new Map<number, Suggestion>();
   let calls = 0;
   const run = async (model: string, batch: CategorizeInput[]) => {
     const user = JSON.stringify({ allowedCategories: categories, businesses: businessNames, lines: batch });
     calls++;
-    const { data } = await client.json({ model, system: SYSTEM, user, schemaName: "statement_categories", jsonSchema, validate: Out, maxTokens: 120 * batch.length + 200 }, budget);
+    const { data } = await client.json({ model, system: SYSTEM, user, schemaName: "statement_categories", jsonSchema, validate: Out, maxTokens: 120 * batch.length + 200 }, budget, ctx);
     const wanted = new Set(batch.map((b) => b.i));
     for (const s of data.items) if (wanted.has(s.i)) out.set(s.i, { ...s, category: categories.includes(s.category) ? s.category : "Other" });
   };
