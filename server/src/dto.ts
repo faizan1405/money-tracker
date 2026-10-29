@@ -4,7 +4,10 @@ import { toPaise, toRupees } from "./money.js";
 import type { AccountRec, TxnInput, TxnRec } from "./repo/types.js";
 
 /** Zod schemas mirror src/lib/finance/types.ts. Amounts arrive in rupees (≤ 2 decimals). */
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}/, "Use yyyy-mm-dd").transform((s) => s.slice(0, 10))
+/** Calendar day in India. A full timestamp (e.g. 2026-10-05T19:00:00Z = 6 Oct 00:30 IST) is converted to the IST date. */
+const istDay = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" });
+export const toIstDate = (s: string) => (s.length > 10 && !Number.isNaN(Date.parse(s)) ? istDay.format(new Date(s)) : s.slice(0, 10));
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}/, "Use yyyy-mm-dd").transform(toIstDate)
   .refine((s) => !Number.isNaN(new Date(`${s}T00:00:00Z`).getTime()), "Invalid date");
 const money = z.number().finite();
 const opt = <T extends z.ZodTypeAny>(s: T) => s.optional().nullable();
