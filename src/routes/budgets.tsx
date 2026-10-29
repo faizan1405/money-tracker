@@ -70,8 +70,9 @@ function Budgets() {
           <form className="mt-4 flex flex-wrap gap-2" onSubmit={(e) => {
             e.preventDefault();
             if (!cat || !Number(limit)) { toast.error("Choose a category and limit"); return; }
-            f.update("budgets", [...f.budgets, { id: `b${Date.now()}`, category: cat, limit: Number(limit), workspace: BUSINESS_CATEGORIES.includes(cat) ? "scaleflow" : "personal" }]);
-            setCat(""); setLimit(""); toast.success("Budget added");
+            void f.update("budgets", [...f.budgets, { id: `b${Date.now()}`, category: cat, limit: Number(limit), workspace: BUSINESS_CATEGORIES.includes(cat) ? "scaleflow" : "personal" }]).then((ok) => {
+              if (ok) { setCat(""); setLimit(""); toast.success("Budget added"); }
+            });
           }}>
             <Select value={cat} onValueChange={setCat}><SelectTrigger className="w-[200px]"><SelectValue placeholder="Category" /></SelectTrigger><SelectContent>{[...PERSONAL_CATEGORIES, ...BUSINESS_CATEGORIES, ...f.customCategories].filter((c) => !f.budgets.some((b) => b.category === c)).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select>
             <Input className="w-32" inputMode="numeric" placeholder="Limit ₹" value={limit} onChange={(e) => setLimit(e.target.value)} />

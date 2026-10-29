@@ -93,7 +93,9 @@ export function AddTransactionDialog() {
     setF((s) => ({ ...s, type, category: defaults[type], toAccountId: type === "cc_payment" ? "icici-cc" : s.toAccountId }));
   };
 
-  const save = () => {
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    if (busy) return;
     if (!f.amount || !Number.isFinite(f.amount) || f.amount <= 0) { toast.error("Enter an amount greater than zero"); return; }
     if (f.amount > 1e10) { toast.error("That amount looks too large — please check it"); return; }
     if (!f.accountId || !accounts.some((a) => a.id === f.accountId)) { toast.error("Choose an account"); return; }
@@ -109,15 +111,20 @@ export function AddTransactionDialog() {
       toAccountId: twoAccounts ? f.toAccountId : undefined,
       source: f.source ?? "manual",
     } as Omit<Transaction, "id">;
-    if (editing) {
-      updateTxn(editing.id, t);
-      toast.success("Transaction updated");
-    } else {
-      addTxn(t);
-      savePrefs({ accountId: t.accountId, workspace: t.workspace });
-      toast.success(t.merchant === t.category ? `Added ${t.category}` : `Added ${t.merchant} · ${t.category}`);
+    setBusy(true);
+    try {
+      if (editing) {
+        if (!(await updateTxn(editing.id, t))) return; // error already shown; dialog stays open
+        toast.success("Transaction updated");
+      } else {
+        if (!(await addTxn(t))) return;
+        savePrefs({ accountId: t.accountId, workspace: t.workspace });
+        toast.success(t.merchant === t.category ? `Added ${t.category}` : `Added ${t.merchant} · ${t.category}`);
+      }
+      closeAdd();
+    } finally {
+      setBusy(false);
     }
-    closeAdd();
   };
 
   return (
@@ -255,7 +262,7 @@ export function AddTransactionDialog() {
 
         <div className="sticky bottom-0 -mx-6 -mb-6 flex items-center justify-between gap-2 border-t bg-background px-6 py-3">
           {editing ? (
-            <Button variant="ghost" className="text-destructive" onClick={() => { deleteTxns([editing.id]); toast("Transaction deleted"); closeAdd(); }}>
+            <Button variant="ghost" className="text-destructive" disabled={busy} onClick={async () => { setBusy(true); const ok = await deleteTxns([editing.id]); setBusy(false); if (ok) { toast("Transaction deleted"); closeAdd(); } }}>
               <Trash2 className="size-4" />Delete
             </Button>
           ) : <span />}

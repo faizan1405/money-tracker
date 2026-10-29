@@ -118,7 +118,7 @@ export function FlowPage({ mode }: { mode: "in" | "out" }) {
               <div><div className="mb-1.5 text-xs font-semibold text-muted-foreground">Personal</div><div className="flex flex-wrap gap-1.5">{PERSONAL_CATEGORIES.map((c) => <Pill key={c}>{c}</Pill>)}</div></div>
               <div><div className="mb-1.5 text-xs font-semibold text-muted-foreground">Business</div><div className="flex flex-wrap gap-1.5">{BUSINESS_CATEGORIES.map((c) => <Pill key={c}>{c}</Pill>)}</div></div>
               {f.customCategories.length > 0 && <div><div className="mb-1.5 text-xs font-semibold text-muted-foreground">Custom</div><div className="flex flex-wrap gap-1.5">{f.customCategories.map((c) => <Pill key={c} tone="primary">{c}</Pill>)}</div></div>}
-              <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); const c = newCat.trim(); if (!c) return; f.update("customCategories", [...new Set([...f.customCategories, c])]); setNewCat(""); toast.success(`Added category ${c}`); }}>
+              <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); const c = newCat.trim(); if (!c) return; void f.update("customCategories", [...new Set([...f.customCategories, c])]).then((ok) => { if (ok) { setNewCat(""); toast.success(`Added category ${c}`); } }); }}>
                 <Input value={newCat} onChange={(e) => setNewCat(e.target.value)} placeholder="New custom category" /><Button type="submit" variant="secondary">Add</Button>
               </form>
             </div>
