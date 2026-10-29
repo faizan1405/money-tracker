@@ -208,7 +208,7 @@ function Dashboard() {
   );
 }
 
-export function BudgetMini() {
+function BudgetMini() {
   const f = useFinance();
   const { current } = usePeriodTxns();
   const budgets = f.budgets.filter((b) => f.workspace === "all" || b.workspace === f.workspace);
