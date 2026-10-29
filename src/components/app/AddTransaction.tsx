@@ -55,7 +55,7 @@ export function parseQuick(text: string): Draft<Transaction> | null {
 }
 
 export function AddTransactionDialog() {
-  const { addOpen, closeAdd, prefill, editing, addTxn, updateTxn, deleteTxns, accounts, customCategories, txns } = useFinance();
+  const { addOpen, closeAdd, prefill, editing, addTxn, updateTxn, deleteTxns, accounts, customCategories, txns, mode } = useFinance();
   const blank = (): Draft<Transaction> => {
     const p = loadPrefs();
     return { type: "expense", workspace: p.workspace ?? "personal", accountId: p.accountId ?? "gpay", category: p.workspace === "scaleflow" ? "Meta Ads" : "Food & Dining", date: new Date().toISOString(), status: "cleared" };
