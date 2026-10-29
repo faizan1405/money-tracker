@@ -222,6 +222,7 @@ export function parseStatementText(text: string): ParsedStatement {
   const warnings: string[] = [];
   let opening: number | undefined, closing: number | undefined;
   let headerSeen = false;
+  let lastIdx = -10;
   lines.forEach((l, idx) => {
     if (!l) return;
     if (OPENING.test(l)) { opening = lastAmount(l) ?? opening; return; }
@@ -230,7 +231,7 @@ export function parseStatementText(text: string): ParsedStatement {
     const d = parseDate(l);
     if (!d) {
       const prev = rows[rows.length - 1];
-      if (prev && headerSeen && !SUMMARY.test(l) && prev.line >= idx - 2) { prev.description += ` ${l}`; prev.line = prev.line; }
+      if (prev && headerSeen && !SUMMARY.test(l) && lastIdx === idx - 1) { prev.description += ` ${l}`; lastIdx = idx; }
       return;
     }
     let rest = l.slice(d.len).trim();
@@ -261,6 +262,7 @@ export function parseStatementText(text: string): ParsedStatement {
     if (direction === "unknown") direction = /dr\.?$/i.test(amount.raw) ? "debit" : /cr\.?$/i.test(amount.raw) ? "credit" : amount.v < 0 ? "debit" : "unknown";
     if (amount.v === 0) return;
     const ref = extractRef(desc);
+    lastIdx = idx;
     rows.push({ line: idx + 1, date: d.date, description: desc, direction, amountPaise: Math.abs(amount.v), ...(ref ? { ref } : {}), ...(bal !== undefined ? { balancePaise: bal } : {}), ...(timeM ? { time: timeM[1]!.padStart(5, "0") } : {}) });
   });
   settleDirections(rows, opening);
