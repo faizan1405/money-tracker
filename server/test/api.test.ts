@@ -227,9 +227,12 @@ describe("dashboard + other endpoints", () => {
     expect(boot.workspaces.map((w: { id: string }) => w.id)).toEqual(["personal", "scaleflow"]);
   });
 
-  it("unfinished modules return 501, never fake success", async () => {
+  it("unfinished modules return 501, never fake success; chat without an AI key says so", async () => {
     const { app, auth } = await setup(await makeRepo());
-    expect((await request(app).post("/api/ai/chat").set(auth).send({ messages: [] })).status).toBe(501);
+    expect((await request(app).get("/api/invoices").set(auth)).status).toBe(501);
+    const r = await request(app).post("/api/ai/chat").set(auth).send({ message: "How much did I spend?" });
+    expect(r.status).toBe(503);
+    expect(r.body.code).toBe("ai_not_configured");
   });
 
   it("health reports the database honestly", async () => {
