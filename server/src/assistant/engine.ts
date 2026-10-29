@@ -178,7 +178,7 @@ export async function answerQuestion(ai: OpenRouterClient, ctx: AiCallCtx, data:
       schemaName: "finance_answer", jsonSchema: explainSchema, validate: ExplainOut, maxTokens: 600,
     }, budget, ctx);
     track(ex.usage);
-    const sugg = facts.metric === "unsupported" ? [] : ex.data.suggestions.filter((s) => answerIsGrounded(s, facts));
+    const sugg = ex.data.suggestions.filter((s) => answerIsGrounded(s, facts));
     if (answerIsGrounded(ex.data.answer, facts)) { text = ex.data.answer; suggestions = sugg; aiExplained = true; }
   } catch (e) {
     if (!(e instanceof AiError)) throw e;
