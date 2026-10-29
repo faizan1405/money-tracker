@@ -16,7 +16,7 @@ export function AssistantChat({ className, full = false }: { className?: string;
   return <PreviewChat className={className} />;
 }
 
-function PreviewChat({ className }: { className?: string }) {
+function PreviewChat({ className }: { className?: string | undefined }) {
   const { recurring } = useFinance();
   const { txns, dues } = useScoped();
   const [msgs, setMsgs] = useState<Msg[]>([]);

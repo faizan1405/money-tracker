@@ -278,7 +278,7 @@ function MiniChart({ f }: { f: AssistantFacts }) {
             <CartesianGrid vertical={false} stroke="var(--border)" />
             <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={11} stroke="var(--muted-foreground)" />
             <YAxis tickLine={false} axisLine={false} fontSize={10} width={52} tickFormatter={(v: number) => formatCompact(v)} stroke="var(--muted-foreground)" />
-            <Tooltip contentStyle={tooltipStyle} formatter={(v: number, n: string) => [formatINR(v), n === "a" ? c.series[0] : c.series[1]]} />
+            <Tooltip {...tooltipStyle} formatter={(v: number, n: string) => [formatINR(v), n === "a" ? c.series[0] : c.series[1]]} />
             <Bar dataKey="a" fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} />
             {c.series.length > 1 && <Bar dataKey="b" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} />}
           </BarChart>
