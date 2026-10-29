@@ -132,7 +132,7 @@ export function AddTransactionDialog() {
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="font-display text-2xl font-medium">{editing ? "Edit transaction" : "Add transaction"}</DialogTitle>
-          <DialogDescription>Saved to this browser only (Preview Mode).</DialogDescription>
+          <DialogDescription>{mode === "production" ? "Saved to your Money Hub server." : "Saved to this browser only (Preview Mode)."}</DialogDescription>
         </DialogHeader>
 
         {!editing && (
