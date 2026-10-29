@@ -9,7 +9,7 @@ import { pdfToText } from "../src/statements/pdf.js";
 import { CARD_CSV, HDFC_CSV, SBI_PDF_PAGES, fakeOpenRouter, makePdf, type FakeAi } from "./fixtures.js";
 import { ORIGIN, PASSWORD, config, cookieToken, makeRepo, onPrisma, setup, tx } from "./helpers.js";
 
-const aiCfg = { apiKey: "test-key", fastModel: "openai/gpt-4.1-mini", strongModel: "openai/gpt-5-mini", timeoutMs: 200, maxRetries: 1, maxCostPerStatementUsd: 0.05, dailyCostLimitUsd: 1 };
+const aiCfg = { apiKey: "test-key", fastModel: "openai/gpt-4.1-mini", strongModel: "openai/gpt-4.1", timeoutMs: 200, maxRetries: 1, maxCostPerStatementUsd: 0.05, dailyCostLimitUsd: 1 };
 
 describe("deterministic parsing", () => {
   it("parses Indian dates and exact paise amounts", () => {

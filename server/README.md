@@ -95,7 +95,7 @@ On a VPS: same steps, run with `pm2 start dist/index.js --name moneyhub`, put Ng
 5. `POST /api/statements/:id/review` saves only approved rows in one DB transaction and clears the pending rows. Corrections with "remember" become explicit rules.
 
 Set `OPENROUTER_API_KEY` to enable AI (see `.env.example` for models and spending caps). Without it, imports still work: rules apply and other rows are marked "Needs a category".
-Defaults `openai/gpt-4.1-mini` (fast) and `openai/gpt-5-mini` (escalation) were picked from OpenRouter's zero-data-retention endpoint list with structured-output support; re-check if you change them. The daily cost cap is per process and resets on restart.
+Defaults `openai/gpt-4.1-mini` (fast) and `openai/gpt-4.1` (escalation) were verified live (Oct 2026) to route to a zero-retention, strict-JSON provider; `openai/gpt-5-mini`, `gpt-5`, `o4-mini` and `gemini-2.5-flash` were not. Run `npm run ai:smoke` after changing them. If the escalation model has no private provider, the fast model's answers are kept. The daily cost cap is per process and resets on restart.
 
 Not supported yet: scanned/image statements (OCR), Excel files. They return a clear error.
 

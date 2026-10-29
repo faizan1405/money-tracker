@@ -12,7 +12,7 @@ const key = process.env.OPENROUTER_API_KEY?.trim();
 if (!key) { console.error("OPENROUTER_API_KEY is not set."); process.exit(2); }
 
 const fast = process.env.AI_MODEL_FAST || "openai/gpt-4.1-mini";
-const strong = process.env.AI_MODEL_STRONG || "openai/gpt-5-mini";
+const strong = process.env.AI_MODEL_STRONG || "openai/gpt-4.1";
 
 // Fictional lines with expected type (and acceptable categories).
 const cases: { d: string; dir: "debit" | "credit"; type: string[]; cat?: string[] }[] = [

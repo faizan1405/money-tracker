@@ -21,7 +21,7 @@ const Env = z.object({
 
 /** Defaults verified on OpenRouter's zero-data-retention endpoint list with strict structured outputs (Oct 2026). */
 export const DEFAULT_FAST_MODEL = "openai/gpt-4.1-mini";
-export const DEFAULT_STRONG_MODEL = "openai/gpt-5-mini";
+export const DEFAULT_STRONG_MODEL = "openai/gpt-4.1";
 
 export interface AppConfig {
   isProd: boolean;
