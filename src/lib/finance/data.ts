@@ -167,6 +167,7 @@ export interface StatementRow {
   workspace: WorkspaceId;
   confidence: number;
   duplicateOf?: string;
+  ref?: string;
   flag?: string;
   state: "pending" | "approved" | "rejected";
 }
@@ -186,5 +187,7 @@ export function buildSampleStatement(now = new Date()): StatementRow[] {
     { date: d(9), merchant: "Zomato", description: "UPI/ZOMATO LTD", amount: 420, direction: "debit", category: "Food & Dining", workspace: "personal", confidence: 0.96 },
     { date: d(10), merchant: "Croma", description: "POS CROMA RETAIL", amount: 14990, direction: "debit", category: "Shopping", workspace: "personal", confidence: 0.71, flag: "Unusually large for Shopping" },
   ];
-  return rows.map((x, i) => ({ ...x, id: `s${i}`, state: "pending" }));
+  // Bank reference ids are stable for the same statement, so re-imports can be matched exactly.
+  // The second Hostinger row has no reference, so it can only be flagged as a possible duplicate.
+  return rows.map((x, i) => ({ ...x, id: `s${i}`, state: "pending", ...(x.duplicateOf ? {} : { ref: `SMPL${x.date.slice(0, 10).replace(/-/g, "")}${String(i).padStart(2, "0")}` }) }));
 }

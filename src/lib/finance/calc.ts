@@ -147,20 +147,43 @@ export function toCSV(txns: Transaction[], accounts: Account[]) {
   return [head.join(","), ...lines].join("\n");
 }
 
-/** True when the ledger already has a transaction with the same day, amount, merchant and account. */
-export function isDuplicate(t: Omit<Transaction, "id">, ledger: Transaction[]) {
-  const day = t.date.slice(0, 10);
-  const m = t.merchant.trim().toLowerCase();
-  return ledger.some((x) => x.date.slice(0, 10) === day && x.amount === t.amount && x.accountId === t.accountId && x.merchant.trim().toLowerCase() === m);
+export type DupMatch = "exact" | "possible" | "none";
+
+/**
+ * How an incoming transaction relates to one existing transaction.
+ * - Same bank reference on the same account: exact (safe to skip).
+ * - Different references: never a duplicate, even with identical date/merchant/amount.
+ * - No reference on either side but same day, account, amount and merchant: possible — the user decides.
+ */
+export function compareTxn(t: Omit<Transaction, "id">, x: Omit<Transaction, "id">): DupMatch {
+  if (t.accountId !== x.accountId && t.accountId !== x.toAccountId) return "none";
+  if (t.ref && x.ref) return t.ref === x.ref ? "exact" : "none";
+  const same = x.date.slice(0, 10) === t.date.slice(0, 10) && x.amount === t.amount && x.merchant.trim().toLowerCase() === t.merchant.trim().toLowerCase();
+  return same ? "possible" : "none";
 }
 
-/** Splits incoming rows into new ones and ones already in the ledger (also de-duplicates within the batch). */
-export function dedupe(incoming: Omit<Transaction, "id">[], ledger: Transaction[]) {
+export function matchDuplicate(t: Omit<Transaction, "id">, ledger: Omit<Transaction, "id">[]): DupMatch {
+  let best: DupMatch = "none";
+  for (const x of ledger) {
+    const m = compareTxn(t, x);
+    if (m === "exact") return "exact";
+    if (m === "possible") best = "possible";
+  }
+  return best;
+}
+
+/** Drops only exact (same reference) re-imports. Possible duplicates are kept: the user already reviewed them. */
+export function dedupe(incoming: Omit<Transaction, "id">[], ledger: Omit<Transaction, "id">[]) {
   const fresh: Omit<Transaction, "id">[] = [];
   let skipped = 0;
   for (const t of incoming) {
-    if (isDuplicate(t, ledger) || isDuplicate(t, fresh as Transaction[])) skipped++;
+    if (matchDuplicate(t, ledger) === "exact" || matchDuplicate(t, fresh) === "exact") skipped++;
     else fresh.push(t);
   }
   return { fresh, skipped };
+}
+
+/** Sum of a filtered list using the same income/expense rules as the dashboard. */
+export function netOf(txns: Transaction[]) {
+  return totals(txns).net;
 }
