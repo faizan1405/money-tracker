@@ -1,5 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ACCOUNTS, BUDGETS, GOALS, RULES, buildDemoTransactions, buildDues, buildRecurring } from "./data";
+import { toast } from "sonner";
+import { useAuth } from "@/lib/auth/session";
+import { ApiError } from "@/lib/api/client";
+import { bootstrapApi, collectionsApi, transactionsApi } from "@/lib/api/services";
+import type { AppMode } from "@/lib/api/config";
+import type { CollectionKey } from "@/lib/api/contracts";
 import type { Draft, Account, Budget, Due, Goal, Period, Recurring, Rule, Transaction, WorkspaceFilter } from "./types";
 
 const KEY = "moneyhub-preview-v1";
@@ -14,6 +20,12 @@ interface State {
   rules: Rule[];
   customCategories: string[];
 }
+
+export function emptyState(): State {
+  return { txns: [], accounts: [], dues: [], budgets: [], goals: [], recurring: [], rules: [], customCategories: [] };
+}
+
+export type DataStatus = "idle" | "loading" | "ready" | "error";
 
 function initial(): State {
   return {
@@ -42,6 +54,10 @@ interface Ctx extends State {
   update: <K extends keyof State>(k: K, v: State[K]) => void;
   resetDemo: () => void;
   ready: boolean;
+  mode: AppMode;
+  dataStatus: DataStatus;
+  dataError: ApiError | null;
+  reload: () => void;
   dark: boolean;
   setDark: (d: boolean) => void;
   // UI
@@ -56,8 +72,13 @@ interface Ctx extends State {
 const FinanceCtx = createContext<Ctx | null>(null);
 
 export function FinanceProvider({ children }: { children: ReactNode }) {
+  const { mode, modeReady, status } = useAuth();
+  const prod = mode === "production";
   const [state, setState] = useState<State>(initial);
   const [ready, setReady] = useState(false);
+  const [dataStatus, setDataStatus] = useState<DataStatus>("idle");
+  const [dataError, setDataError] = useState<ApiError | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [workspace, setWorkspace] = useState<WorkspaceFilter>("all");
   const [period, setPeriod] = useState<Period>("month");
   const now = new Date();
@@ -68,19 +89,58 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [dark, setDarkState] = useState(false);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) setState({ ...initial(), ...JSON.parse(raw) });
-      setDarkState(localStorage.getItem(KEY + "-dark") === "1");
-    } catch {
-      /* ignore corrupted preview data */
-    }
-    setReady(true);
+    setDarkState(localStorage.getItem(KEY + "-dark") === "1");
   }, []);
 
+  // Preview: load demo data from localStorage. Production: load only from the API — never demo data.
   useEffect(() => {
-    if (ready) localStorage.setItem(KEY, JSON.stringify(state));
-  }, [state, ready]);
+    if (!modeReady) return;
+    setReady(false);
+    if (!prod) {
+      let next = initial();
+      try {
+        const raw = localStorage.getItem(KEY);
+        if (raw) next = { ...next, ...JSON.parse(raw) };
+      } catch {
+        /* ignore corrupted preview data */
+      }
+      setState(next);
+      setDataStatus("ready");
+      setDataError(null);
+      setReady(true);
+      return;
+    }
+    setState(emptyState());
+    if (status !== "signed_in") {
+      setDataStatus("idle");
+      return;
+    }
+    let cancelled = false;
+    setDataStatus("loading");
+    setDataError(null);
+    bootstrapApi
+      .load()
+      .then((b) => {
+        if (cancelled) return;
+        setState({ txns: b.transactions, accounts: b.accounts, dues: b.dues, budgets: b.budgets, goals: b.goals, recurring: b.recurring, rules: b.rules, customCategories: b.customCategories });
+        setDataStatus("ready");
+        setReady(true);
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        setDataError(e instanceof ApiError ? e : new ApiError("network", "Couldn't load your data."));
+        setDataStatus("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [prod, modeReady, status, reloadKey]);
+
+  useEffect(() => {
+    if (ready && !prod) localStorage.setItem(KEY, JSON.stringify(state));
+  }, [state, ready, prod]);
+
+  const fail = (e: unknown) => toast.error(e instanceof Error ? e.message : "Couldn't save to the server");
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -91,12 +151,17 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(KEY + "-dark", d ? "1" : "0");
   };
 
+  const sortTx = (a: Transaction, b: Transaction) => b.date.localeCompare(a.date);
   const addTxns = useCallback((ts: Omit<Transaction, "id">[]) => {
+    if (prod) {
+      transactionsApi.createMany(ts).then((created) => setState((s) => ({ ...s, txns: [...created, ...s.txns].sort(sortTx) }))).catch(fail);
+      return;
+    }
     setState((s) => ({
       ...s,
       txns: [...ts.map((t) => ({ ...t, id: `u${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}` })), ...s.txns].sort((a, b) => b.date.localeCompare(a.date)),
     }));
-  }, []);
+  }, [prod]);
 
   const value: Ctx = {
     ...state,
@@ -108,11 +173,28 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setCustom,
     addTxn: (t) => addTxns([t]),
     addTxns,
-    updateTxn: (id, patch) => setState((s) => ({ ...s, txns: s.txns.map((t) => (t.id === id ? { ...t, ...patch } : t)).sort((a, b) => b.date.localeCompare(a.date)) })),
-    deleteTxns: (ids) => setState((s) => ({ ...s, txns: s.txns.filter((t) => !ids.includes(t.id)) })),
-    update: (k, v) => setState((s) => ({ ...s, [k]: v })),
-    resetDemo: () => setState(initial()),
+    updateTxn: (id, patch) => prod
+      ? void transactionsApi.update(id, patch).then((t) => setState((s) => ({ ...s, txns: s.txns.map((x) => (x.id === id ? t : x)).sort(sortTx) }))).catch(fail)
+      : setState((s) => ({ ...s, txns: s.txns.map((t) => (t.id === id ? { ...t, ...patch } : t)).sort((a, b) => b.date.localeCompare(a.date)) })),
+    deleteTxns: (ids) => prod
+      ? void transactionsApi.remove(ids).then(() => setState((s) => ({ ...s, txns: s.txns.filter((t) => !ids.includes(t.id)) }))).catch(fail)
+      : setState((s) => ({ ...s, txns: s.txns.filter((t) => !ids.includes(t.id)) })),
+    update: (k, v) => {
+      if (prod) {
+        if (k === "txns") return;
+        void collectionsApi.replace(k as CollectionKey, v).then(() => setState((s) => ({ ...s, [k]: v }))).catch(fail);
+        return;
+      }
+      setState((s) => ({ ...s, [k]: v }));
+    },
+    resetDemo: () => {
+      if (!prod) setState(initial());
+    },
     ready,
+    mode,
+    dataStatus,
+    dataError,
+    reload: () => setReloadKey((n) => n + 1),
     dark,
     setDark,
     addOpen,
