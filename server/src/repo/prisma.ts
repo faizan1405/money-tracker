@@ -4,6 +4,7 @@ import type { TxnType } from "../domain/ledger.js";
 import {
   ConflictError, DEFAULT_WORKSPACES, DuplicateRefError, type AccountRec, type CategoryRec, type CollectionKey, type Collections,
   type OwnerRec, type Repo, type SessionRec, type TxnFilter, type TxnInput, type TxnRec, type WorkspaceRec,
+  type AiReserve, type AiSettle, type AiUsageSummary, type ChatMessageRec, type ConversationRec,
 } from "./types.js";
 import type { ImportRec, ImportSummary, ReviewRow } from "../statements/types.js";
 
@@ -286,5 +287,71 @@ export class PrismaRepo implements Repo {
       if (isUniqueViolation(e)) throw new DuplicateRefError(txns.find((t) => t.ref)?.ref ?? "");
       throw e;
     }
+  }
+
+  // ---------- AI usage ----------
+  async reserveAi(ownerId: string, r: AiReserve) {
+    return this.db.$transaction(async (tx) => {
+      // Row lock on the owner serialises concurrent reservations, so two requests can't both squeeze under the limit.
+      await tx.$queryRaw`SELECT id FROM Owner WHERE id = ${ownerId} FOR UPDATE`;
+      const spend = async (where: Prisma.AiUsageWhereInput) => {
+        const [res, set] = await Promise.all([
+          tx.aiUsage.aggregate({ where: { ...where, ownerId, status: "reserved" }, _sum: { reservedMicroUsd: true } }),
+          tx.aiUsage.aggregate({ where: { ...where, ownerId, status: { not: "reserved" } }, _sum: { costMicroUsd: true } }),
+        ]);
+        return (res._sum.reservedMicroUsd ?? 0) + (set._sum.costMicroUsd ?? 0);
+      };
+      if ((await spend({ day: r.day })) + r.reserveMicroUsd > r.dailyLimitMicroUsd) return { ok: false as const, limit: "daily" as const };
+      if ((await spend({ month: r.month })) + r.reserveMicroUsd > r.monthlyLimitMicroUsd) return { ok: false as const, limit: "monthly" as const };
+      const row = await tx.aiUsage.create({ data: { ownerId, feature: r.feature, model: r.model, status: "reserved", day: r.day, month: r.month, reservedMicroUsd: r.reserveMicroUsd } });
+      return { ok: true as const, id: row.id };
+    });
+  }
+  async settleAi(ownerId: string, id: string, s: AiSettle) {
+    await this.db.aiUsage.updateMany({ where: { id, ownerId }, data: s });
+  }
+  async aiUsage(ownerId: string, day: string, month: string): Promise<AiUsageSummary> {
+    const rows = await this.db.aiUsage.findMany({ where: { ownerId, month }, select: { day: true, status: true, reservedMicroUsd: true, costMicroUsd: true, promptTokens: true, completionTokens: true } });
+    const cost = (u: (typeof rows)[number]) => (u.status === "reserved" ? u.reservedMicroUsd : u.costMicroUsd);
+    const today = rows.filter((u) => u.day === day);
+    return {
+      dayMicroUsd: today.reduce((s, u) => s + cost(u), 0), monthMicroUsd: rows.reduce((s, u) => s + cost(u), 0),
+      requestsToday: today.length, requestsMonth: rows.length,
+      promptTokensMonth: rows.reduce((s, u) => s + u.promptTokens, 0), completionTokensMonth: rows.reduce((s, u) => s + u.completionTokens, 0),
+    };
+  }
+
+  // ---------- Conversations ----------
+  private conv = (c: { id: string; title: string; createdAt: Date; updatedAt: Date }): ConversationRec => ({ id: c.id, title: c.title, createdAt: c.createdAt.toISOString(), updatedAt: c.updatedAt.toISOString() });
+  private msg = (m: { id: string; role: string; content: string; data: Prisma.JsonValue; createdAt: Date }): ChatMessageRec => ({
+    id: m.id, role: m.role === "user" ? "user" : "assistant", content: m.content, createdAt: m.createdAt.toISOString(), ...(m.data == null ? {} : { data: m.data }),
+  });
+  async listConversations(ownerId: string) {
+    return (await this.db.aiConversation.findMany({ where: { ownerId }, orderBy: { updatedAt: "desc" }, take: 200 })).map(this.conv);
+  }
+  async getConversation(ownerId: string, id: string) {
+    const c = await this.db.aiConversation.findFirst({ where: { id, ownerId }, include: { messages: { orderBy: { createdAt: "asc" } } } });
+    return c ? { ...this.conv(c), messages: c.messages.map(this.msg) } : null;
+  }
+  async createConversation(ownerId: string, title: string) {
+    return this.conv(await this.db.aiConversation.create({ data: { ownerId, title } }));
+  }
+  async addMessages(ownerId: string, conversationId: string, msgs: Omit<ChatMessageRec, "id" | "createdAt">[]) {
+    return this.db.$transaction(async (tx) => {
+      const c = await tx.aiConversation.findFirst({ where: { id: conversationId, ownerId } });
+      if (!c) throw new ConflictError("Conversation not found");
+      const out: ChatMessageRec[] = [];
+      for (const m of msgs) {
+        out.push(this.msg(await tx.aiMessage.create({ data: { conversationId, role: m.role, content: m.content, data: m.data === undefined ? Prisma.JsonNull : (m.data as Prisma.InputJsonValue) } })));
+      }
+      await tx.aiConversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } });
+      return out;
+    });
+  }
+  async deleteConversation(ownerId: string, id: string) {
+    return (await this.db.aiConversation.deleteMany({ where: { id, ownerId } })).count > 0;
+  }
+  async purgeConversations(ownerId: string, before: Date) {
+    return (await this.db.aiConversation.deleteMany({ where: { ownerId, updatedAt: { lt: before } } })).count;
   }
 }

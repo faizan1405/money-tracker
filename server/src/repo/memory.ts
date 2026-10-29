@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   ConflictError, DEFAULT_WORKSPACES, DuplicateRefError, type AccountRec, type CategoryRec, type CollectionKey, type Collections,
   type OwnerRec, type Repo, type SessionRec, type TxnFilter, type TxnInput, type TxnRec, type WorkspaceRec,
+  type AiReserve, type AiSettle, type AiUsageSummary, type ChatMessageRec, type ConversationRec,
 } from "./types.js";
 import type { ImportRec } from "../statements/types.js";
 
