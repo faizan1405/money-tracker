@@ -21,7 +21,7 @@ export function LiveStatementStudio() {
 
   const upload = async () => {
     const acc = f.accounts.find((a) => a.id === account);
-    if (!file || !acc) return toast.error("Choose an account and a statement file.");
+    if (!file || !acc) return void toast.error("Choose an account and a statement file.");
     setBusy(true);
     try {
       const r = await statementsApi.upload(file, acc.id, acc.workspace);

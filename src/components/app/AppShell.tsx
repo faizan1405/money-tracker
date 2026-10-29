@@ -35,7 +35,7 @@ function Logo({ small }: { small?: boolean }) {
       <span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground">
         <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 18V7l8 6 8-6v11" /></svg>
       </span>
-      {!small && <div className="leading-tight"><div className="font-display text-lg font-semibold">Money Hub</div><div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">AI · {mode === "production" ? "Live" : "Preview"}</div></div>}
+      {!small && <div className="leading-tight"><div className="font-display text-lg font-semibold">Money Hub</div><div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">AI · {useAuth().mode === "production" ? "Live" : "Preview"}</div></div>}
     </div>
   );
 }

@@ -9,7 +9,7 @@ const MODE_KEY = "moneyhub-mode";
 const URL_KEY = "moneyhub-api-url";
 
 export function envApiUrl(): string {
-  const v = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
+  const v = (import.meta.env["VITE_API_BASE_URL"] as string | undefined) ?? "";
   return v.trim();
 }
 

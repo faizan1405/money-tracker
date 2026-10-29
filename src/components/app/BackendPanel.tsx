@@ -18,12 +18,12 @@ export function BackendPanel() {
 
   const valid = isValidApiUrl(normalizeUrl(url));
   const save = () => {
-    if (url && !valid) return toast.error("Use an https:// address (http only for localhost).");
+    if (url && !valid) return void toast.error("Use an https:// address (http only for localhost).");
     setApiBaseUrl(url);
     toast.success(url ? "Server address saved" : "Using the default server address");
   };
   const test = async () => {
-    if (!valid) return toast.error("Enter a valid server address first.");
+    if (!valid) return void toast.error("Enter a valid server address first.");
     setCheck("busy");
     try {
       const r = await healthApi.check(normalizeUrl(url));
@@ -42,7 +42,7 @@ export function BackendPanel() {
           <div className="text-sm font-semibold">Preview</div>
           <div className="mt-1 text-xs text-muted-foreground">Fictional demo data saved in this browser. No sign-in.</div>
         </button>
-        <button onClick={() => { if (!getApiBaseUrl()) return toast.error("Save a server address first."); setMode("production"); }} aria-pressed={mode === "production"} className={`rounded-2xl border p-4 text-left transition-colors ${mode === "production" ? "border-primary bg-primary-soft" : "hover:border-primary/50"}`}>
+        <button onClick={() => { if (!getApiBaseUrl()) return void toast.error("Save a server address first."); setMode("production"); }} aria-pressed={mode === "production"} className={`rounded-2xl border p-4 text-left transition-colors ${mode === "production" ? "border-primary bg-primary-soft" : "hover:border-primary/50"}`}>
           <div className="text-sm font-semibold">Production</div>
           <div className="mt-1 text-xs text-muted-foreground">Your real data from your Money Hub server. Sign-in required. Demo data is never shown.</div>
         </button>

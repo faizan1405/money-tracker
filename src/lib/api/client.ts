@@ -39,9 +39,9 @@ export interface RequestOptions {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   auth?: boolean; // default true
-  signal?: AbortSignal;
-  baseUrl?: string;
-  fetchImpl?: typeof fetch;
+  signal?: AbortSignal | undefined;
+  baseUrl?: string | undefined;
+  fetchImpl?: typeof fetch | undefined;
 }
 
 /** Single entry point for every backend call. */
@@ -53,7 +53,7 @@ export async function apiRequest<T>(path: string, opts: RequestOptions = {}): Pr
   if (opts.body !== undefined && !isForm) headers["Content-Type"] = "application/json";
   if (opts.auth !== false) {
     const t = getToken();
-    if (t) headers.Authorization = `Bearer ${t}`;
+    if (t) headers["Authorization"] = `Bearer ${t}`;
   }
 
   const ctrl = new AbortController();
@@ -66,7 +66,7 @@ export async function apiRequest<T>(path: string, opts: RequestOptions = {}): Pr
     res = await doFetch(`${base}${path}`, {
       method: opts.method ?? "GET",
       headers,
-      body: opts.body === undefined ? undefined : isForm ? (opts.body as FormData) : JSON.stringify(opts.body),
+      body: opts.body === undefined ? null : isForm ? (opts.body as FormData) : JSON.stringify(opts.body),
       signal: ctrl.signal,
       credentials: "omit",
     });
