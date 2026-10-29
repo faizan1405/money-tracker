@@ -15,3 +15,4 @@
 - All backend calls go through `apiRequest` in `src/lib/api/client.ts` with contracts in `src/lib/api/contracts.ts` (mirrored in `docs/BACKEND_HANDOFF.md`) so the external backend has one source of truth.
 - Production access is gated by `ProductionGate` + `src/lib/auth/session.tsx` (bearer token, 401 = session expired); AI keys stay on the external server.
 - Duplicate detection (`matchDuplicate`/`dedupe` in calc.ts): only same-reference matches are skipped automatically; look-alikes without references are flagged for the user, so genuine repeat payments are never silently dropped.
+- The real API lives in `server/` (Express + Prisma + MySQL, its own package, tests and README); it is not part of the Lovable app build. Money is integer paise there and `server/src/domain/ledger.ts` must stay in sync with `src/lib/finance/calc.ts`.

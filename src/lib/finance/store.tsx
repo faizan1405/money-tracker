@@ -182,7 +182,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     update: (k, v) => {
       if (prod) {
         if (k === "txns") return;
-        void collectionsApi.replace(k as CollectionKey, v).then(() => setState((s) => ({ ...s, [k]: v }))).catch(fail);
+        void collectionsApi.replace(k as CollectionKey, v).then((saved) => setState((s) => ({ ...s, [k]: saved ?? v }))).catch(fail);
         return;
       }
       setState((s) => ({ ...s, [k]: v }));

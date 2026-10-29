@@ -1,0 +1,279 @@
+// Money Hub AI — MySQL schema. All money columns are BigInt paise (1 rupee = 100 paise).
+// Every financial row belongs to exactly one Owner; queries always filter by ownerId.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Owner {
+  id           String   @id @default(cuid())
+  email        String   @unique @db.VarChar(191)
+  name         String   @db.VarChar(120)
+  passwordHash String   @db.VarChar(255)
+  createdAt    DateTime @default(now())
+
+  sessions      Session[]
+  workspaces    Workspace[]
+  accounts      Account[]
+  categories    Category[]
+  transactions  Transaction[]
+  clients       Client[]
+  projects      Project[]
+  invoices      Invoice[]
+  loans         Loan[]
+  budgets       Budget[]
+  goals         Goal[]
+  recurring     Recurring[]
+  rules         Rule[]
+  imports       StatementImport[]
+  auditLogs     AuditLog[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  ownerId   String
+  tokenHash String   @unique @db.Char(64) // sha256 of the raw token; raw token is never stored
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userAgent String?  @db.VarChar(255)
+  ip        String?  @db.VarChar(64)
+  owner     Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
+  @@index([expiresAt])
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  ownerId   String
+  key       String   @db.VarChar(40) // "personal", "scaleflow", ... (matches frontend WorkspaceId)
+  name      String   @db.VarChar(120)
+  short     String   @db.VarChar(40)
+  kind      String   @db.VarChar(16) // personal | business
+  createdAt DateTime @default(now())
+  owner     Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, key])
+}
+
+model Account {
+  id                  String   @id @default(cuid())
+  ownerId             String
+  workspace           String   @db.VarChar(40)
+  name                String   @db.VarChar(120)
+  institution         String   @db.VarChar(120)
+  kind                String   @db.VarChar(16) // bank | cash | upi | credit_card | wallet
+  openingBalancePaise BigInt   @default(0)     // credit cards: negative = owed
+  creditLimitPaise    BigInt?
+  last4               String?  @db.VarChar(4)
+  reconciled          String   @default("never") @db.VarChar(16)
+  archived            Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  owner               Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  outgoing            Transaction[] @relation("fromAccount")
+  incoming            Transaction[] @relation("toAccount")
+
+  @@index([ownerId, workspace])
+}
+
+model Category {
+  id        String  @id @default(cuid())
+  ownerId   String
+  workspace String  @db.VarChar(40)
+  name      String  @db.VarChar(80)
+  kind      String  @db.VarChar(16) // income | expense
+  parentId  String?                  // subcategories
+  custom    Boolean @default(true)
+  owner     Owner   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  parent    Category?  @relation("sub", fields: [parentId], references: [id])
+  children  Category[] @relation("sub")
+
+  @@unique([ownerId, workspace, name])
+}
+
+model Transaction {
+  id             String   @id @default(cuid())
+  ownerId        String
+  date           DateTime @db.Date
+  type           String   @db.VarChar(24) // income|expense|transfer|refund|loan_disbursement|loan_repayment|cc_payment|adjustment
+  amountPaise    BigInt   // always > 0
+  adjustmentSign Int?     // adjustment only: 1 or -1
+  interestPaise  BigInt?  // loan_repayment only: interest part (an expense)
+  description    String   @db.VarChar(255)
+  merchant       String   @db.VarChar(160)
+  category       String   @db.VarChar(80)
+  subcategory    String?  @db.VarChar(80)
+  workspace      String   @db.VarChar(40)
+  accountId      String
+  toAccountId    String?
+  client         String?  @db.VarChar(160)
+  project        String?  @db.VarChar(160)
+  notes          String?  @db.Text
+  status         String   @default("cleared") @db.VarChar(16)
+  recurring      Boolean  @default(false)
+  source         String   @default("manual") @db.VarChar(16)
+  ref            String?  @db.VarChar(120) // bank/UPI reference from a statement
+  importId       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  owner          Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  account        Account  @relation("fromAccount", fields: [accountId], references: [id])
+  toAccount      Account? @relation("toAccount", fields: [toAccountId], references: [id])
+  import         StatementImport? @relation(fields: [importId], references: [id])
+
+  // Same bank reference on the same account can only exist once → exact re-imports are impossible.
+  @@unique([ownerId, accountId, ref])
+  @@index([ownerId, date])
+  @@index([ownerId, workspace, date])
+}
+
+model Client {
+  id       String    @id @default(cuid())
+  ownerId  String
+  name     String    @db.VarChar(160)
+  email    String?   @db.VarChar(191)
+  owner    Owner     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  projects Project[]
+  invoices Invoice[]
+
+  @@unique([ownerId, name])
+}
+
+model Project {
+  id         String   @id @default(cuid())
+  ownerId    String
+  clientId   String
+  name       String   @db.VarChar(160)
+  valuePaise BigInt   @default(0)
+  owner      Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  client     Client   @relation(fields: [clientId], references: [id])
+  invoices   Invoice[]
+}
+
+model Invoice {
+  id          String    @id @default(cuid())
+  ownerId     String
+  clientId    String
+  projectId   String?
+  number      String    @db.VarChar(40)
+  issueDate   DateTime  @db.Date
+  dueDate     DateTime  @db.Date
+  amountPaise BigInt
+  status      String    @default("draft") @db.VarChar(16) // draft|sent|partial|paid|void
+  owner       Owner     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  client      Client    @relation(fields: [clientId], references: [id])
+  project     Project?  @relation(fields: [projectId], references: [id])
+  payments    InvoicePayment[]
+
+  @@unique([ownerId, number])
+}
+
+model InvoicePayment {
+  id            String   @id @default(cuid())
+  invoiceId     String
+  transactionId String?  @unique // the income transaction that recorded the money
+  date          DateTime @db.Date
+  amountPaise   BigInt
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model Loan {
+  id               String   @id @default(cuid())
+  ownerId          String
+  workspace        String   @db.VarChar(40)
+  direction        String   @db.VarChar(16) // i_owe | owed_to_me
+  kind             String   @db.VarChar(16) // loan | personal | client | emi
+  party            String   @db.VarChar(160)
+  principalPaise   BigInt
+  outstandingPaise BigInt
+  dueDate          DateTime @db.Date
+  interestRateBp   Int?     // basis points, 1250 = 12.50%
+  emiPaise         BigInt?
+  notes            String?  @db.Text
+  owner            Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  repayments       LoanRepayment[]
+}
+
+model LoanRepayment {
+  id            String   @id @default(cuid())
+  loanId        String
+  transactionId String?  @unique
+  date          DateTime @db.Date
+  amountPaise   BigInt
+  interestPaise BigInt   @default(0)
+  loan          Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+}
+
+model Budget {
+  id         String @id @default(cuid())
+  ownerId    String
+  workspace  String @db.VarChar(40)
+  category   String @db.VarChar(80)
+  limitPaise BigInt
+  owner      Owner  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+}
+
+model Goal {
+  id          String   @id @default(cuid())
+  ownerId     String
+  name        String   @db.VarChar(120)
+  targetPaise BigInt
+  savedPaise  BigInt   @default(0)
+  deadline    DateTime @db.Date
+  owner       Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+}
+
+model Recurring {
+  id          String   @id @default(cuid())
+  ownerId     String
+  workspace   String   @db.VarChar(40)
+  name        String   @db.VarChar(120)
+  amountPaise BigInt
+  category    String   @db.VarChar(80)
+  nextDate    DateTime @db.Date
+  cadence     String   @db.VarChar(16) // monthly | quarterly | yearly
+  owner       Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+}
+
+model Rule {
+  id        String  @id @default(cuid())
+  ownerId   String
+  workspace String  @db.VarChar(40)
+  match     String  @db.VarChar(120)
+  category  String  @db.VarChar(80)
+  priority  Int
+  enabled   Boolean @default(true)
+  owner     Owner   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+}
+
+model StatementImport {
+  id           String   @id @default(cuid())
+  ownerId      String
+  accountId    String
+  workspace    String   @db.VarChar(40)
+  fileName     String   @db.VarChar(255)
+  status       String   @db.VarChar(16) // uploaded|processing|needs_review|completed|failed
+  error        String?  @db.Text
+  createdAt    DateTime @default(now())
+  owner        Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  ownerId   String
+  action    String   @db.VarChar(60)  // e.g. txn.create, auth.login
+  entity    String   @db.VarChar(40)
+  entityId  String?  @db.VarChar(64)
+  detail    Json?
+  ip        String?  @db.VarChar(64)
+  createdAt DateTime @default(now())
+  owner     Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, createdAt])
+}
