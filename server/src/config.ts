@@ -18,7 +18,7 @@ const Env = z.object({
   AI_DAILY_COST_LIMIT_USD: z.coerce.number().min(0).default(1),
   AI_MONTHLY_COST_LIMIT_USD: z.coerce.number().min(0).default(10),
   AI_MAX_COST_PER_REQUEST_USD: z.coerce.number().min(0).default(0.02),
-  AI_CHAT_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120_000).default(30_000),
+  AI_CHAT_TIMEOUT_MS: z.coerce.number().int().min(1000).max(40_000).default(20_000),
   AI_CHAT_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(90),
   AI_CHAT_PER_MINUTE: z.coerce.number().int().min(1).max(600).default(20),
   AI_MAX_ROWS_PER_STATEMENT: z.coerce.number().int().min(1).max(2000).default(400),

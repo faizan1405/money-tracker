@@ -19,7 +19,7 @@ export function aiHttpError(e: AiError) {
 }
 
 export function registerAssistantRoutes(app: Express, { repo, config, ai, owner, now }: Deps) {
-  const opts = config.assistant ?? { chatTimeoutMs: 30_000, retentionDays: 90, perMinute: 20 };
+  const opts = config.assistant ?? { chatTimeoutMs: 20_000, retentionDays: 90, perMinute: 20 };
   const chatAi = ai ? ai.withOptions({ timeoutMs: opts.chatTimeoutMs, maxRetries: 1 }) : null;
   const limiter = rateLimit({
     windowMs: 60_000, limit: opts.perMinute, standardHeaders: "draft-7", legacyHeaders: false,

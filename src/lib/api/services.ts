@@ -66,11 +66,11 @@ export const statementsApi = {
 };
 
 export const aiApi = {
-  chat: (b: ChatRequest) => apiRequest<ChatResponse>("/api/ai/chat", { method: "POST", body: b }),
+  chat: (b: ChatRequest) => apiRequest<ChatResponse>("/api/ai/chat", { method: "POST", body: b, timeoutMs: 90_000 }), // server bounds each AI call (20 s, 1 retry)
   conversations: () => apiRequest<{ items: ConversationSummary[]; retentionDays: number }>("/api/ai/conversations"),
   conversation: (id: string) => apiRequest<ConversationDetail>(`/api/ai/conversations/${encodeURIComponent(id)}`),
   deleteConversation: (id: string) => apiRequest<void>(`/api/ai/conversations/${encodeURIComponent(id)}`, { method: "DELETE" }),
   insights: (workspace: string) => apiRequest<InsightsResponse>(`/api/ai/insights${qs({ workspace })}`),
-  suggest: (workspace: string) => apiRequest<InsightSuggestions>("/api/ai/insights/suggest", { method: "POST", body: { workspace } }),
+  suggest: (workspace: string) => apiRequest<InsightSuggestions>("/api/ai/insights/suggest", { method: "POST", body: { workspace }, timeoutMs: 60_000 }),
   usage: () => apiRequest<AiUsageResponse>("/api/ai/usage"),
 };
