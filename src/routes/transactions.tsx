@@ -23,6 +23,7 @@ export const Route = createFileRoute("/transactions")({
       { property: "og:description", content: "Search, filter, edit and categorise every transaction." },
     ],
   }),
+  validateSearch: (s: Record<string, unknown>): { q?: string } => (typeof s["q"] === "string" && s["q"] ? { q: s["q"].slice(0, 100) } : {}),
   component: Transactions,
 });
 
@@ -31,7 +32,8 @@ const ALL_CATS = [...PERSONAL_CATEGORIES, ...BUSINESS_CATEGORIES, ...INCOME_CATE
 function Transactions() {
   const { openAdd, accounts, updateTxn, deleteTxns, customCategories, workspace, setWorkspace } = useFinance();
   const { txns } = useScoped();
-  const [q, setQ] = useState("");
+  const search = Route.useSearch();
+  const [q, setQ] = useState(search.q ?? "");
   const [type, setType] = useState<"all" | TxnType>("all");
   const [cat, setCat] = useState("all");
   const [acc, setAcc] = useState("all");
