@@ -25,9 +25,9 @@ export const PASSWORD = "correct horse battery";
 export async function setup(repo: Repo, opts: { now?: () => number; loginLimit?: number } = {}) {
   const owner = await repo.createOwner({ email: "owner@test.in", name: "Owner", passwordHash: await hashPassword(PASSWORD) });
   const app = createApp({ repo, config, ...opts });
-  const login = await request(app).post("/api/auth/login").send({ email: "owner@test.in", password: PASSWORD });
-  const token = login.body.token as string;
-  const auth = { Authorization: `Bearer ${token}` };
+  const login = await request(app).post("/api/auth/login").set("Origin", ORIGIN).send({ email: "owner@test.in", password: PASSWORD });
+  const token = cookieToken(login.headers["set-cookie"]);
+  const auth = { Cookie: `mh_session=${token}`, Origin: ORIGIN };
   await request(app).put("/api/collections/accounts").set(auth).send({
     items: [
       { id: "new-bank", name: "HDFC", institution: "HDFC", kind: "bank", workspace: "personal", openingBalance: 10000 },
@@ -41,3 +41,12 @@ export async function setup(repo: Repo, opts: { now?: () => number; loginLimit?:
 }
 
 export const tx = (o: Record<string, unknown>) => ({ date: "2026-10-05", description: "", merchant: "", category: "Other", workspace: "personal", status: "cleared", ...o });
+
+export function cookieToken(h: unknown): string {
+  const all = Array.isArray(h) ? h.join(";") : String(h ?? "");
+  const m = /mh_session=([^;]+)/.exec(all);
+  if (!m) throw new Error("no session cookie");
+  return m[1]!;
+}
+export const signIn = (app: Parameters<typeof request>[0], email: string, password: string) =>
+  request(app).post("/api/auth/login").set("Origin", ORIGIN).send({ email, password });

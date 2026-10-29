@@ -98,19 +98,22 @@ function Settings() {
               e.preventDefault();
               if (!match.trim() || !cat) { toast.error("Enter match text and a category"); return; }
               const ws: WorkspaceId = BUSINESS_CATEGORIES.includes(cat) ? "scaleflow" : "personal";
-              f.update("rules", [...f.rules, { id: `ru${Date.now()}`, match: match.trim().toUpperCase(), category: cat, workspace: ws, priority: f.rules.length + 1, enabled: true }]);
-              setMatch(""); setCat(""); toast.success("Rule added");
+              void f.update("rules", [...f.rules, { id: `ru${Date.now()}`, match: match.trim().toUpperCase(), category: cat, workspace: ws, priority: f.rules.length + 1, enabled: true }]).then((ok) => {
+                if (ok) { setMatch(""); setCat(""); toast.success("Rule added"); }
+              });
             }}>
               <Input className="w-48" placeholder="Merchant contains…" value={match} onChange={(e) => setMatch(e.target.value)} />
               <Select value={cat} onValueChange={setCat}><SelectTrigger className="w-[200px]"><SelectValue placeholder="Category" /></SelectTrigger><SelectContent>{[...PERSONAL_CATEGORIES, ...BUSINESS_CATEGORIES].map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select>
               <Button type="submit" variant="secondary"><Plus className="size-4" />Add rule</Button>
-              <Button type="button" variant="outline" onClick={() => {
+              <Button type="button" variant="outline" onClick={async () => {
                 const active = rules.filter((r) => r.enabled);
-                let n = 0;
+                const jobs: Promise<boolean>[] = [];
                 f.txns.forEach((t) => {
                   const hit = active.find((r) => `${t.merchant} ${t.description}`.toUpperCase().includes(r.match));
-                  if (hit && (t.type === "expense") && t.category !== hit.category) { f.updateTxn(t.id, { category: hit.category, workspace: hit.workspace }); n++; }
+                  if (hit && (t.type === "expense") && t.category !== hit.category) jobs.push(f.updateTxn(t.id, { category: hit.category, workspace: hit.workspace }));
                 });
+                const n = (await Promise.all(jobs)).filter(Boolean).length;
+                if (jobs.length && n < jobs.length) toast.error(`${jobs.length - n} couldn't be updated`);
                 toast.success(n ? `Re-categorised ${n} transactions` : "Everything already matches your rules");
               }}>Apply to existing</Button>
             </form>

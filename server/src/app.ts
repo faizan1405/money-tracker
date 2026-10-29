@@ -4,7 +4,7 @@ import express, { type Request } from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import { z } from "zod";
-import { COOKIE, cookieOptions, dummyHash, newToken, requireAuth, sha256, verifyPassword } from "./auth.js";
+import { COOKIE, assertOrigin, cookieOptions, dummyHash, newToken, requireAuth, sha256, verifyPassword } from "./auth.js";
 import type { AppConfig } from "./config.js";
 import { accountBalance, byCategory, byMonth, totals } from "./domain/ledger.js";
 import { AccountBody, CollectionSchemas, TxnBody, accountFromBody, accountToDto, txnFromBody, txnToBody, txnToDto } from "./dto.js";
@@ -28,7 +28,7 @@ export function createApp({ repo, config, now = Date.now, loginLimit = 10 }: App
     origin: (origin, cb) => cb(null, !origin || config.corsOrigins.includes(origin)),
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allowedHeaders: ["Authorization", "Content-Type"],
+    allowedHeaders: ["Content-Type"],
     maxAge: 600,
   }));
   app.use(express.json({ limit: "2mb" }));
@@ -58,6 +58,7 @@ export function createApp({ repo, config, now = Date.now, loginLimit = 10 }: App
   const LoginBody = z.object({ email: z.string().email().max(191), password: z.string().min(1).max(200) });
 
   app.post("/api/auth/login", loginLimiter, ah(async (req, res) => {
+    assertOrigin(req, config); // login CSRF: only our own frontend may start a session
     const { email, password } = LoginBody.parse(req.body);
     const o = await repo.findOwnerByEmail(email);
     const ok = o ? await verifyPassword(password, o.passwordHash) : (await verifyPassword(password, await dummyHash()), false);
@@ -67,7 +68,7 @@ export function createApp({ repo, config, now = Date.now, loginLimit = 10 }: App
     await repo.createSession({ ownerId: o.id, tokenHash: sha256(token), expiresAt }, { ip: req.ip, userAgent: req.get("user-agent") });
     await repo.audit(o.id, "auth.login", "session", null, undefined, req.ip);
     res.cookie(COOKIE, token, cookieOptions(config, config.sessionTtlMs));
-    res.json({ token, expiresAt: expiresAt.toISOString(), user: { id: o.id, email: o.email, name: o.name } });
+    res.json({ expiresAt: expiresAt.toISOString(), user: { id: o.id, email: o.email, name: o.name } }); // token only in the HttpOnly cookie
   }));
 
   app.post("/api/auth/logout", auth, ah(async (req, res) => {
@@ -80,7 +81,7 @@ export function createApp({ repo, config, now = Date.now, loginLimit = 10 }: App
   app.get("/api/auth/me", auth, ah(async (req, res) => {
     const o = await repo.getOwner(owner(req));
     if (!o) throw new HttpError(401, "Please sign in", "unauthenticated");
-    res.json({ id: o.id, email: o.email, name: o.name });
+    res.json({ expiresAt: req.sessionExpiresAt!.toISOString(), user: { id: o.id, email: o.email, name: o.name } });
   }));
 
   // Everything below requires a session.

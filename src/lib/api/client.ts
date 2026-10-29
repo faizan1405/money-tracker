@@ -9,6 +9,7 @@ export class ApiError extends Error {
     message: string,
     public status?: number,
     public details?: ApiErrorBody["details"],
+    public code?: string,
   ) {
     super(message);
     this.name = "ApiError";
@@ -23,15 +24,11 @@ export function kindForStatus(status: number): ApiErrorKind {
   return "server";
 }
 
-type TokenGetter = () => string | null;
-type UnauthorizedHandler = () => void;
-
-let getToken: TokenGetter = () => null;
+type UnauthorizedHandler = (code?: string) => void;
 let onUnauthorized: UnauthorizedHandler = () => {};
 
-/** Wired by AuthProvider. */
-export function configureApiAuth(t: TokenGetter, u: UnauthorizedHandler) {
-  getToken = t;
+/** Wired by AuthProvider. Auth itself is an HttpOnly cookie the browser sends; JS never sees a token. */
+export function configureApiAuth(u: UnauthorizedHandler) {
   onUnauthorized = u;
 }
 
@@ -51,10 +48,6 @@ export async function apiRequest<T>(path: string, opts: RequestOptions = {}): Pr
   const headers: Record<string, string> = { Accept: "application/json" };
   const isForm = typeof FormData !== "undefined" && opts.body instanceof FormData;
   if (opts.body !== undefined && !isForm) headers["Content-Type"] = "application/json";
-  if (opts.auth !== false) {
-    const t = getToken();
-    if (t) headers["Authorization"] = `Bearer ${t}`;
-  }
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort("timeout"), API_TIMEOUT_MS);
@@ -68,7 +61,7 @@ export async function apiRequest<T>(path: string, opts: RequestOptions = {}): Pr
       headers,
       body: opts.body === undefined ? null : isForm ? (opts.body as FormData) : JSON.stringify(opts.body),
       signal: ctrl.signal,
-      credentials: "omit",
+      credentials: "include", // sends the HttpOnly session cookie
     });
   } catch (e) {
     if (ctrl.signal.aborted && ctrl.signal.reason === "timeout") throw new ApiError("timeout", "The server took too long to respond.");
@@ -87,8 +80,8 @@ export async function apiRequest<T>(path: string, opts: RequestOptions = {}): Pr
   if (!res.ok) {
     const body = (json ?? {}) as Partial<ApiErrorBody>;
     const kind = kindForStatus(res.status);
-    if (kind === "unauthorized" && opts.auth !== false) onUnauthorized();
-    throw new ApiError(kind, body.message || `Request failed (${res.status})`, res.status, body.details);
+    if (kind === "unauthorized" && opts.auth !== false) onUnauthorized(body.code);
+    throw new ApiError(kind, body.message || `Request failed (${res.status})`, res.status, body.details, body.code);
   }
   return json as T;
 }

@@ -92,6 +92,9 @@ function Analytics() {
         </Panel>
       </div>
 
+      {f.mode === "production" ? (
+        <Panel title="Project profitability" className="mt-4"><p className="text-sm text-muted-foreground">Clients, projects and invoices aren't available on your server yet. This section will show real project profit once that module is added.</p></Panel>
+      ) : (
       <Panel title="Project profitability · Scale Flow (all time)" className="mt-4">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm">
@@ -113,6 +116,7 @@ function Analytics() {
         </div>
         <p className="mt-3 text-xs text-muted-foreground">Estimated profit = payments received − costs tagged to the project. Personal spending, loan principal and transfers are never counted as business expenses.</p>
       </Panel>
+      )}
     </>
   );
 }

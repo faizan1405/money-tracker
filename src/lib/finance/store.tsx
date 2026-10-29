@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ACCOUNTS, BUDGETS, GOALS, RULES, buildDemoTransactions, buildDues, buildRecurring } from "./data";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth/session";
@@ -47,11 +47,13 @@ interface Ctx extends State {
   setPeriod: (p: Period) => void;
   custom: { from: string; to: string };
   setCustom: (c: { from: string; to: string }) => void;
-  addTxn: (t: Omit<Transaction, "id">) => void;
-  addTxns: (t: Omit<Transaction, "id">[]) => void;
-  updateTxn: (id: string, patch: Partial<Transaction>) => void;
-  deleteTxns: (ids: string[]) => void;
-  update: <K extends keyof State>(k: K, v: State[K]) => void;
+  /** All mutations resolve true only after the change is really saved (instantly in Preview, after the server confirms in Production). */
+  addTxn: (t: Omit<Transaction, "id">) => Promise<boolean>;
+  addTxns: (t: Omit<Transaction, "id">[]) => Promise<boolean>;
+  updateTxn: (id: string, patch: Partial<Transaction>) => Promise<boolean>;
+  deleteTxns: (ids: string[]) => Promise<boolean>;
+  update: <K extends keyof State>(k: K, v: State[K]) => Promise<boolean>;
+  saving: boolean;
   resetDemo: () => void;
   ready: boolean;
   mode: AppMode;
@@ -152,16 +154,39 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   };
 
   const sortTx = (a: Transaction, b: Transaction) => b.date.localeCompare(a.date);
-  const addTxns = useCallback((ts: Omit<Transaction, "id">[]) => {
+  const inflight = useRef(new Set<string>());
+  const [savingCount, setSavingCount] = useState(0);
+
+  /** Runs a server write once: identical requests already in flight (double clicks) are ignored. */
+  const run = useCallback(async (key: string, op: () => Promise<void>) => {
+    if (inflight.current.has(key)) return false;
+    inflight.current.add(key);
+    setSavingCount((n) => n + 1);
+    try {
+      await op();
+      return true;
+    } catch (e) {
+      fail(e);
+      return false;
+    } finally {
+      inflight.current.delete(key);
+      setSavingCount((n) => n - 1);
+    }
+  }, []);
+
+  const addTxns = useCallback(async (ts: Omit<Transaction, "id">[]) => {
     if (prod) {
-      transactionsApi.createMany(ts).then((created) => setState((s) => ({ ...s, txns: [...created, ...s.txns].sort(sortTx) }))).catch(fail);
-      return;
+      return run(`add:${JSON.stringify(ts)}`, async () => {
+        const created = await transactionsApi.createMany(ts);
+        setState((s) => ({ ...s, txns: [...created, ...s.txns].sort(sortTx) }));
+      });
     }
     setState((s) => ({
       ...s,
-      txns: [...ts.map((t) => ({ ...t, id: `u${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}` })), ...s.txns].sort((a, b) => b.date.localeCompare(a.date)),
+      txns: [...ts.map((t) => ({ ...t, id: `u${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}` })), ...s.txns].sort(sortTx),
     }));
-  }, [prod]);
+    return true;
+  }, [prod, run]);
 
   const value: Ctx = {
     ...state,
@@ -173,20 +198,38 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setCustom,
     addTxn: (t) => addTxns([t]),
     addTxns,
-    updateTxn: (id, patch) => prod
-      ? void transactionsApi.update(id, patch).then((t) => setState((s) => ({ ...s, txns: s.txns.map((x) => (x.id === id ? t : x)).sort(sortTx) }))).catch(fail)
-      : setState((s) => ({ ...s, txns: s.txns.map((t) => (t.id === id ? { ...t, ...patch } : t)).sort((a, b) => b.date.localeCompare(a.date)) })),
-    deleteTxns: (ids) => prod
-      ? void transactionsApi.remove(ids).then(() => setState((s) => ({ ...s, txns: s.txns.filter((t) => !ids.includes(t.id)) }))).catch(fail)
-      : setState((s) => ({ ...s, txns: s.txns.filter((t) => !ids.includes(t.id)) })),
-    update: (k, v) => {
+    updateTxn: async (id, patch) => {
       if (prod) {
-        if (k === "txns") return;
-        void collectionsApi.replace(k as CollectionKey, v).then((saved) => setState((s) => ({ ...s, [k]: saved ?? v }))).catch(fail);
-        return;
+        return run(`upd:${id}:${JSON.stringify(patch)}`, async () => {
+          const t = await transactionsApi.update(id, patch);
+          setState((s) => ({ ...s, txns: s.txns.map((x) => (x.id === id ? t : x)).sort(sortTx) }));
+        });
+      }
+      setState((s) => ({ ...s, txns: s.txns.map((t) => (t.id === id ? { ...t, ...patch } : t)).sort(sortTx) }));
+      return true;
+    },
+    deleteTxns: async (ids) => {
+      if (prod) {
+        return run(`del:${ids.join(",")}`, async () => {
+          await transactionsApi.remove(ids);
+          setState((s) => ({ ...s, txns: s.txns.filter((t) => !ids.includes(t.id)) }));
+        });
+      }
+      setState((s) => ({ ...s, txns: s.txns.filter((t) => !ids.includes(t.id)) }));
+      return true;
+    },
+    update: async (k, v) => {
+      if (prod) {
+        if (k === "txns") return false;
+        return run(`col:${String(k)}:${JSON.stringify(v)}`, async () => {
+          const saved = await collectionsApi.replace(k as CollectionKey, v);
+          setState((s) => ({ ...s, [k]: saved ?? v }));
+        });
       }
       setState((s) => ({ ...s, [k]: v }));
+      return true;
     },
+    saving: savingCount > 0,
     resetDemo: () => {
       if (!prod) setState(initial());
     },

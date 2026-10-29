@@ -9,20 +9,20 @@ describe("API client", () => {
     await expect(apiRequest("/api/bootstrap", { baseUrl: "" })).rejects.toMatchObject({ kind: "config" });
   });
 
-  it("sends the bearer token", async () => {
-    configureApiAuth(() => "tok123", () => {});
+  it("never sends a token header; relies on the HttpOnly cookie", async () => {
     const f = vi.fn(async () => res(200, { ok: true }));
     await apiRequest("/api/x", { baseUrl: "https://api.test", fetchImpl: f as unknown as typeof fetch });
     const init = (f.mock.calls[0] as unknown as [string, RequestInit])[1];
-    expect((init.headers as Record<string, string>)["Authorization"]).toBe("Bearer tok123");
+    expect((init.headers as Record<string, string>)["Authorization"]).toBeUndefined();
+    expect(init.credentials).toBe("include");
   });
 
   it("a 401 triggers session expiry", async () => {
     const expired = vi.fn();
-    configureApiAuth(() => "t", expired);
-    const f = vi.fn(async () => res(401, { message: "expired" }));
+    configureApiAuth(expired);
+    const f = vi.fn(async () => res(401, { message: "expired", code: "session_expired" }));
     await expect(apiRequest("/api/x", { baseUrl: "https://api.test", fetchImpl: f as unknown as typeof fetch })).rejects.toBeInstanceOf(ApiError);
-    expect(expired).toHaveBeenCalledOnce();
+    expect(expired).toHaveBeenCalledWith("session_expired");
   });
 
   it("an unreachable server becomes a network error", async () => {
@@ -41,5 +41,17 @@ describe("API client", () => {
     expect(isValidApiUrl("http://localhost:4000")).toBe(true);
     expect(isValidApiUrl("http://api.example.com")).toBe(false);
     expect(normalizeUrl("https://a.com///")).toBe("https://a.com");
+  });
+});
+
+describe("API client timeout", () => {
+  it("gives up after 15 seconds with a timeout error", async () => {
+    vi.useFakeTimers();
+    const f = vi.fn((_u: string, init: RequestInit) => new Promise<Response>((_r, rej) => init.signal?.addEventListener("abort", () => rej(new DOMException("aborted", "AbortError")))));
+    const p = apiRequest("/api/x", { baseUrl: "https://api.test", fetchImpl: f as unknown as typeof fetch });
+    const check = expect(p).rejects.toMatchObject({ kind: "timeout" });
+    await vi.advanceTimersByTimeAsync(15001);
+    await check;
+    vi.useRealTimers();
   });
 });

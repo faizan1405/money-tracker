@@ -15,9 +15,9 @@ Frontend types live in `src/lib/api/contracts.ts` (source of truth); calls in `s
 
 ## Conventions
 - JSON everywhere except statement upload (multipart). Money = INR rupees as numbers. Dates `yyyy-mm-dd`.
-- Auth: `Authorization: Bearer <token>`. Any 401 → frontend shows "Session expired" and asks to sign in again.
+- Auth: HttpOnly session cookie only (`credentials: include`); no token in responses or browser storage. `GET /api/auth/me` returns `{ user, expiresAt }`. A 401 with code `session_expired` → frontend shows "Your session expired".
 - Errors: `{ "message": string, "code"?: string, "details"?: [{ "field", "message" }] }` with 400/401/403/404/409/422/5xx.
-- CORS must allow the frontend origin, `Authorization` and `Content-Type` headers. No cookies are used.
+- CORS allows only the exact frontend origin with credentials. Every write (including login) must send an allowed `Origin` (CSRF).
 - Every row is scoped to the signed-in user; never trust a `userId` from the client.
 - Finance rules must match `src/lib/finance/calc.ts`: transfers, credit-card payments and loan principal are never income/expense; only loan interest is an expense. Duplicate rule: same bank `ref` = skip; look-alikes without ref = flag for review.
 
@@ -25,9 +25,9 @@ Frontend types live in `src/lib/api/contracts.ts` (source of truth); calls in `s
 | Method | Path | Body | Response |
 |---|---|---|---|
 | GET | `/api/health` (public) | — | `HealthResponse` |
-| POST | `/api/auth/login` (public) | `LoginRequest` | `LoginResponse` |
+| POST | `/api/auth/login` (public) | `LoginRequest` | `LoginResponse` `{ expiresAt, user }` + Set-Cookie |
 | POST | `/api/auth/logout` | — | 204 |
-| GET | `/api/auth/me` | — | `AuthUser` |
+| GET | `/api/auth/me` | — | `{ expiresAt, user }` |
 | GET | `/api/bootstrap` | — | `BootstrapResponse` (loaded once after sign-in) |
 | GET | `/api/workspaces` | — | `WorkspaceDTO[]` |
 | GET/POST | `/api/categories` | `CategoryDTO` (no id) | `CategoryDTO[]` / `CategoryDTO` |

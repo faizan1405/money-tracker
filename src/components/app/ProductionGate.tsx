@@ -82,7 +82,7 @@ export function LoginScreen({ expired }: { expired?: boolean }) {
 }
 
 export function ConnectionError({ error, onRetry }: { error: ApiError | null; onRetry: () => void }) {
-  const { logout } = useAuth();
+  const { logout, status } = useAuth();
   return (
     <Frame>
       <div className="grid size-12 place-items-center rounded-2xl bg-destructive/10 text-destructive"><ServerCrash className="size-6" /></div>
@@ -92,7 +92,7 @@ export function ConnectionError({ error, onRetry }: { error: ApiError | null; on
       <div className="mt-2 break-all rounded-lg bg-secondary px-3 py-2 font-mono text-[11px] text-muted-foreground">{getApiBaseUrl() || "no address set"}</div>
       <div className="mt-5 flex gap-2">
         <Button onClick={onRetry} className="flex-1"><RefreshCw className="size-4" />Try again</Button>
-        <Button variant="outline" onClick={() => void logout()}><KeyRound className="size-4" />Sign out</Button>
+        {status === "signed_in" && <Button variant="outline" onClick={() => void logout()}><KeyRound className="size-4" />Sign out</Button>}
       </div>
       <BackToPreview />
     </Frame>
@@ -109,10 +109,12 @@ function Loading({ label }: { label: string }) {
 
 /** Protects the whole app in Production Mode. Preview passes straight through. */
 export function ProductionGate({ children }: { children: ReactNode }) {
-  const { mode, modeReady, status } = useAuth();
+  const { mode, modeReady, status, checkError, recheck } = useAuth();
   const { dataStatus, dataError, reload } = useFinance();
   if (!modeReady) return <Loading label="Opening Money Hub…" />;
   if (mode === "preview") return <>{children}</>;
+  if (status === "checking") return <Loading label="Checking your sign-in…" />;
+  if (status === "unreachable") return <ConnectionError error={checkError} onRetry={recheck} />;
   if (status !== "signed_in") return <LoginScreen expired={status === "expired"} />;
   if (dataStatus === "error") return <ConnectionError error={dataError} onRetry={reload} />;
   if (dataStatus !== "ready") return <Loading label="Loading your finances…" />;

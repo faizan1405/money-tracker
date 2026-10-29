@@ -40,8 +40,10 @@ Use a separate, empty test database. Never point TEST_DATABASE_URL at production
 ## Security model
 - Passwords: scrypt (N=2^15, r=8), timing-safe compare; unknown emails take the same time.
 - Sessions: 32-byte random token, only its SHA-256 is stored; expiry enforced server-side (`SESSION_TTL_HOURS`).
-- Token is sent as an **HttpOnly, Secure cookie** (`mh_session`, path `/api`) **and** returned in the login body for the current frontend, which uses `Authorization: Bearer`. Both are accepted.
-- CSRF: cookie-authenticated writes must carry an `Origin` in `CORS_ORIGIN`. Bearer requests can't be forged cross-site.
+- The session lives **only** in an HttpOnly cookie (`mh_session`, path `/api`). It is never returned in a response body and Bearer headers are not accepted. The frontend calls `/api/auth/me` on load to restore the session after a refresh.
+- Cookie flags: `HttpOnly`; `Secure` in production; `SameSite=None` when `CROSS_SITE_COOKIES=true` (frontend and API on different sites), otherwise `SameSite=Strict`.
+- CSRF: every write — including login — must carry an `Origin` listed in `CORS_ORIGIN`; combined with SameSite this blocks forged requests.
+- Dates: timestamps are stored as the Asia/Kolkata calendar day.
 - Login rate limit: 10 tries / 15 min per IP + email.
 - Every query filters by the signed-in owner; accounts used in a transaction must belong to that owner.
 - Helmet headers, CORS limited to exact origins, JSON body limit 2 MB.
@@ -53,6 +55,13 @@ Use a separate, empty test database. Never point TEST_DATABASE_URL at production
 - `@@unique(ownerId, accountId, ref)`: the same bank reference can't be saved twice. Look-alikes without a reference are allowed (user decides).
 - Multi-row saves run in one database transaction: one bad row → nothing saved.
 - An account that still has transactions can't be deleted (database-level restriction).
+
+## Frontend ↔ API configuration
+- Node.js **20 or newer** (tested on 22).
+- Frontend: set `VITE_API_BASE_URL=https://api.yourdomain.com` at build time, or enter the address in Settings → Data & privacy.
+- API: `CORS_ORIGIN` must be the exact frontend origin(s), e.g. `https://moneyhub.yourdomain.com`.
+- Best setup: frontend and API on the same site (e.g. `app.yourdomain.com` + `api.yourdomain.com`) → set `CROSS_SITE_COOKIES=false` (SameSite=Strict). If they are on different sites (e.g. `*.lovable.app` + your domain) use `CROSS_SITE_COOKIES=true`; note some browsers (Safari) block third-party cookies, so the same-site setup is strongly recommended.
+- Both must use HTTPS in production (cookies are `Secure`).
 
 ## Hostinger deployment (not done yet — needs your approval)
 Requires a plan that runs **Node.js apps** (Business/Cloud web hosting with the Node.js app feature, or a VPS). Plain shared hosting without Node can't run this server.

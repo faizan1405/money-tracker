@@ -132,11 +132,11 @@ function Transactions() {
         {sel.size > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-primary-soft p-2 text-sm">
             <span className="px-2 font-medium">{sel.size} selected</span>
-            <Select onValueChange={(c) => { sel.forEach((id) => updateTxn(id, { category: c })); toast.success(`Moved ${sel.size} to ${c}`); setSel(new Set()); }}>
+            <Select onValueChange={async (c) => { const ids = [...sel]; const ok = (await Promise.all(ids.map((id) => updateTxn(id, { category: c })))).filter(Boolean).length; if (ok) toast.success(`Moved ${ok} to ${c}`); setSel(new Set()); }}>
               <SelectTrigger className="h-8 w-[200px] bg-card"><Tags className="size-4" /><SelectValue placeholder="Set category" /></SelectTrigger>
               <SelectContent>{[...ALL_CATS, ...customCategories].map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
             </Select>
-            <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { deleteTxns([...sel]); toast(`Deleted ${sel.size}`); setSel(new Set()); }}><Trash2 className="size-4" />Delete</Button>
+            <Button size="sm" variant="ghost" className="text-destructive" onClick={async () => { const n = sel.size; if (await deleteTxns([...sel])) { toast(`Deleted ${n}`); setSel(new Set()); } }}><Trash2 className="size-4" />Delete</Button>
             <Button size="sm" variant="ghost" onClick={() => setSel(new Set())}>Cancel</Button>
           </div>
         )}

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFinance, useScoped } from "@/lib/finance/store";
 import { formatDate, formatINR } from "@/lib/finance/format";
-import type { Due } from "@/lib/finance/types";
+import type { Due, Transaction } from "@/lib/finance/types";
 import { EmptyState, PageHeader, Pill, Progress } from "@/components/app/ui-bits";
 
 export const Route = createFileRoute("/loans")({
@@ -98,20 +98,26 @@ function Loans() {
           </TabsContent>
         ))}
       </Tabs>
-      <PayDialog due={pay} onClose={() => setPay(null)} onSave={(amt, interest) => {
+      <PayDialog due={pay} onClose={() => setPay(null)} onSave={async (amt, interest) => {
         if (!pay) return;
-        const principalPart = Math.min(pay.outstanding, amt - interest);
-        f.update("dues", f.dues.map((d) => d.id === pay.id ? { ...d, outstanding: d.outstanding - principalPart, payments: [{ date: new Date().toISOString(), amount: amt, ...(interest ? { interest } : {}) }, ...d.payments] } : d));
-        const biz = pay.workspace === "scaleflow";
-        f.addTxn(pay.direction === "i_owe"
-          ? { type: "loan_repayment", amount: amt, interest, merchant: pay.party, description: `Repayment — ${pay.party}`, category: "Loan", workspace: pay.workspace, accountId: biz ? "kotak-biz" : "hdfc", date: new Date().toISOString(), status: "cleared", source: "manual" }
+        // Use a real account from the same workspace (bank first) — never a hard-coded demo id.
+        const pool = f.accounts.filter((a) => a.workspace === pay.workspace && a.kind !== "credit_card");
+        const acc = pool.find((a) => a.kind === "bank") ?? pool[0];
+        if (!acc) { toast.error("Add a bank or cash account in this workspace first"); return; }
+        const date = new Date().toISOString().slice(0, 10);
+        const txn: Omit<Transaction, "id"> = pay.direction === "i_owe"
+          ? { type: "loan_repayment", amount: amt, interest, merchant: pay.party, description: `Repayment — ${pay.party}`, category: "Loan", workspace: pay.workspace, accountId: acc.id, date, status: "cleared", source: "manual" }
           : pay.kind === "client"
-            ? { type: "income", amount: amt, merchant: pay.party, client: pay.party, description: `Payment received — ${pay.party}`, category: "Client Payment", workspace: pay.workspace, accountId: "kotak-biz", date: new Date().toISOString(), status: "cleared", source: "manual" }
-            : { type: "adjustment", adjustmentSign: 1, amount: amt, merchant: pay.party, description: `Money returned — ${pay.party}`, category: "Loan", workspace: pay.workspace, accountId: "hdfc", date: new Date().toISOString(), status: "cleared", source: "manual" });
-        toast.success("Payment recorded and added to transactions");
+            ? { type: "income", amount: amt, merchant: pay.party, client: pay.party, description: `Payment received — ${pay.party}`, category: "Client Payment", workspace: pay.workspace, accountId: acc.id, date, status: "cleared", source: "manual" }
+            : { type: "adjustment", adjustmentSign: 1, amount: amt, merchant: pay.party, description: `Money returned — ${pay.party}`, category: "Loan", workspace: pay.workspace, accountId: acc.id, date, status: "cleared", source: "manual" };
+        if (!(await f.addTxn(txn))) return; // nothing changed if the transaction failed
+        const principalPart = Math.min(pay.outstanding, amt - interest);
+        const ok = await f.update("dues", f.dues.map((d) => d.id === pay.id ? { ...d, outstanding: d.outstanding - principalPart, payments: [{ date, amount: amt, ...(interest ? { interest } : {}) }, ...d.payments] } : d));
+        if (ok) toast.success("Payment recorded and added to transactions");
+        else toast.error("The transaction was saved, but the loan balance didn't update. Please try again.");
         setPay(null);
       }} />
-      <NewDueDialog open={add} onClose={() => setAdd(false)} onSave={(d) => { f.update("dues", [d, ...f.dues]); toast.success("Record added"); setAdd(false); }} />
+      <NewDueDialog open={add} onClose={() => setAdd(false)} onSave={async (d) => { if (await f.update("dues", [d, ...f.dues])) { toast.success("Record added"); setAdd(false); } }} />
     </>
   );
 }

@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Briefcase, CalendarClock, HandCoins, Lightbulb, Scale, Wallet } from "lucide-react";
+import { useAuth } from "@/lib/auth/session";
 import { useFinance, useScoped } from "@/lib/finance/store";
 import { accountBalance, byCategory, monthly, totals } from "@/lib/finance/calc";
 import { formatCompact, formatDate, formatINR } from "@/lib/finance/format";
@@ -24,6 +25,7 @@ export const Route = createFileRoute("/")({
 
 function Dashboard() {
   const f = useFinance();
+  const { user } = useAuth();
   const { txns, accounts, dues } = useScoped();
   const { current, previous } = usePeriodTxns();
   const t = totals(current);
@@ -56,7 +58,7 @@ function Dashboard() {
 
   return (
     <>
-      <PageHeader title="Good to see you, Faizan" subtitle={`${PERIOD_LABEL[f.period]} · ${f.workspace === "all" ? "All finances" : f.workspace === "personal" ? "Personal" : "Business: Scale Flow"}`} actions={<PeriodSelect />} />
+      <PageHeader title={`Good to see you, ${user?.name?.split(" ")[0] ?? "Faizan"}`} subtitle={`${PERIOD_LABEL[f.period]} · ${f.workspace === "all" ? "All finances" : f.workspace === "personal" ? "Personal" : "Business: Scale Flow"}`} actions={<PeriodSelect />} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard label="Money In" value={t.income} prev={p.income} icon={ArrowDownToLine} tone="positive" />

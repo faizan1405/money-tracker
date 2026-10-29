@@ -1,7 +1,7 @@
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { MemoryRepo } from "../src/repo/memory.js";
-import { ORIGIN, PASSWORD, makeRepo, onPrisma, setup, tx } from "./helpers.js";
+import { ORIGIN, PASSWORD, cookieToken, makeRepo, onPrisma, setup, signIn, tx } from "./helpers.js";
 
 const summary = (app: Parameters<typeof request>[0], auth: object, ws = "all") =>
   request(app).get(`/api/analytics/summary?from=2026-10-01&to=2026-10-31&workspace=${ws}`).set(auth);
@@ -9,9 +9,11 @@ const balances = async (app: Parameters<typeof request>[0], auth: object) =>
   Object.fromEntries(((await request(app).get("/api/accounts/balances").set(auth)).body as { accountId: string; balance: number }[]).map((b) => [b.accountId, b.balance]));
 
 describe("auth", () => {
-  it("login returns a token and sets an HttpOnly cookie", async () => {
+  it("login sets an HttpOnly cookie and never returns the token in the body", async () => {
     const { login } = await setup(await makeRepo());
     expect(login.status).toBe(200);
+    expect(login.body.token).toBeUndefined();
+    expect(JSON.stringify(login.body)).not.toMatch(/mh_session|token/i);
     expect(login.body.user.email).toBe("owner@test.in");
     const c = String(login.headers["set-cookie"]);
     expect(c).toMatch(/mh_session=/);
@@ -21,14 +23,14 @@ describe("auth", () => {
 
   it("wrong password and unknown email both give 401", async () => {
     const { app } = await setup(await makeRepo());
-    expect((await request(app).post("/api/auth/login").send({ email: "owner@test.in", password: "nope" })).status).toBe(401);
-    expect((await request(app).post("/api/auth/login").send({ email: "x@test.in", password: PASSWORD })).status).toBe(401);
+    expect((await signIn(app, "owner@test.in", "nope")).status).toBe(401);
+    expect((await signIn(app, "x@test.in", PASSWORD)).status).toBe(401);
   });
 
   it("rate-limits repeated sign-in attempts", async () => {
     const { app } = await setup(await makeRepo(), { loginLimit: 3 });
-    for (let i = 0; i < 3; i++) await request(app).post("/api/auth/login").send({ email: "owner@test.in", password: "bad" });
-    expect((await request(app).post("/api/auth/login").send({ email: "owner@test.in", password: PASSWORD })).status).toBe(429);
+    for (let i = 0; i < 3; i++) await signIn(app, "owner@test.in", "bad");
+    expect((await signIn(app, "owner@test.in", PASSWORD)).status).toBe(429);
   });
 
   it("all financial endpoints reject unauthenticated calls", async () => {
@@ -64,6 +66,32 @@ describe("auth", () => {
   });
 });
 
+describe("auth hardening", () => {
+  it("a bearer header is not accepted — only the cookie", async () => {
+    const { app, token } = await setup(await makeRepo());
+    expect((await request(app).get("/api/bootstrap").set("Authorization", `Bearer ${token}`)).status).toBe(401);
+  });
+  it("sign-in from a foreign site is refused", async () => {
+    const { app } = await setup(await makeRepo());
+    expect((await request(app).post("/api/auth/login").set("Origin", "https://evil.test").send({ email: "owner@test.in", password: PASSWORD })).status).toBe(403);
+  });
+  it("/me restores the session after a refresh", async () => {
+    const { app, auth } = await setup(await makeRepo());
+    const r = await request(app).get("/api/auth/me").set(auth);
+    expect(r.status).toBe(200);
+    expect(r.body.user.email).toBe("owner@test.in");
+    expect(new Date(r.body.expiresAt).getTime()).toBeGreaterThan(Date.now());
+  });
+  it("CORS only allows the configured frontend", async () => {
+    const { app } = await setup(await makeRepo());
+    const ok = await request(app).options("/api/auth/login").set("Origin", ORIGIN).set("Access-Control-Request-Method", "POST");
+    expect(ok.headers["access-control-allow-origin"]).toBe(ORIGIN);
+    expect(ok.headers["access-control-allow-credentials"]).toBe("true");
+    const bad = await request(app).options("/api/auth/login").set("Origin", "https://evil.test").set("Access-Control-Request-Method", "POST");
+    expect(bad.headers["access-control-allow-origin"]).toBeUndefined();
+  });
+});
+
 describe("ownership", () => {
   it.skipIf(onPrisma)("one owner can't use or see another owner's accounts and transactions", async () => {
     const repo = new MemoryRepo();
@@ -71,8 +99,8 @@ describe("ownership", () => {
     await request(a.app).post("/api/transactions").set(a.auth).send({ items: [tx({ type: "expense", amount: 50, accountId: a.bank })] });
     // second owner on the same storage (simulated)
     const other = await repo.createOwner({ email: "other@test.in", name: "O", passwordHash: a.owner.passwordHash });
-    const login = await request(a.app).post("/api/auth/login").send({ email: "other@test.in", password: PASSWORD });
-    const auth2 = { Authorization: `Bearer ${login.body.token}` };
+    const login = await signIn(a.app, "other@test.in", PASSWORD);
+    const auth2 = { Cookie: `mh_session=${cookieToken(login.headers["set-cookie"])}`, Origin: ORIGIN };
     expect(other.id).not.toBe(a.owner.id);
     expect((await request(a.app).get("/api/transactions").set(auth2)).body.total).toBe(0);
     const r = await request(a.app).post("/api/transactions").set(auth2).send({ items: [tx({ type: "expense", amount: 5, accountId: a.bank })] });

@@ -55,7 +55,7 @@ export function parseQuick(text: string): Draft<Transaction> | null {
 }
 
 export function AddTransactionDialog() {
-  const { addOpen, closeAdd, prefill, editing, addTxn, updateTxn, deleteTxns, accounts, customCategories, txns } = useFinance();
+  const { addOpen, closeAdd, prefill, editing, addTxn, updateTxn, deleteTxns, accounts, customCategories, txns, mode } = useFinance();
   const blank = (): Draft<Transaction> => {
     const p = loadPrefs();
     return { type: "expense", workspace: p.workspace ?? "personal", accountId: p.accountId ?? "gpay", category: p.workspace === "scaleflow" ? "Meta Ads" : "Food & Dining", date: new Date().toISOString(), status: "cleared" };
@@ -93,7 +93,9 @@ export function AddTransactionDialog() {
     setF((s) => ({ ...s, type, category: defaults[type], toAccountId: type === "cc_payment" ? "icici-cc" : s.toAccountId }));
   };
 
-  const save = () => {
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    if (busy) return;
     if (!f.amount || !Number.isFinite(f.amount) || f.amount <= 0) { toast.error("Enter an amount greater than zero"); return; }
     if (f.amount > 1e10) { toast.error("That amount looks too large — please check it"); return; }
     if (!f.accountId || !accounts.some((a) => a.id === f.accountId)) { toast.error("Choose an account"); return; }
@@ -109,15 +111,20 @@ export function AddTransactionDialog() {
       toAccountId: twoAccounts ? f.toAccountId : undefined,
       source: f.source ?? "manual",
     } as Omit<Transaction, "id">;
-    if (editing) {
-      updateTxn(editing.id, t);
-      toast.success("Transaction updated");
-    } else {
-      addTxn(t);
-      savePrefs({ accountId: t.accountId, workspace: t.workspace });
-      toast.success(t.merchant === t.category ? `Added ${t.category}` : `Added ${t.merchant} · ${t.category}`);
+    setBusy(true);
+    try {
+      if (editing) {
+        if (!(await updateTxn(editing.id, t))) return; // error already shown; dialog stays open
+        toast.success("Transaction updated");
+      } else {
+        if (!(await addTxn(t))) return;
+        savePrefs({ accountId: t.accountId, workspace: t.workspace });
+        toast.success(t.merchant === t.category ? `Added ${t.category}` : `Added ${t.merchant} · ${t.category}`);
+      }
+      closeAdd();
+    } finally {
+      setBusy(false);
     }
-    closeAdd();
   };
 
   return (
@@ -125,7 +132,7 @@ export function AddTransactionDialog() {
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="font-display text-2xl font-medium">{editing ? "Edit transaction" : "Add transaction"}</DialogTitle>
-          <DialogDescription>Saved to this browser only (Preview Mode).</DialogDescription>
+          <DialogDescription>{mode === "production" ? "Saved to your Money Hub server." : "Saved to this browser only (Preview Mode)."}</DialogDescription>
         </DialogHeader>
 
         {!editing && (
@@ -225,7 +232,7 @@ export function AddTransactionDialog() {
               <Field label="Subcategory">
                 <Input value={f.subcategory ?? ""} onChange={(e) => set("subcategory", e.target.value)} />
               </Field>
-              {isBiz && (
+              {isBiz && mode === "preview" && (
                 <Field label="Client / project">
                   <Select value={f.project ?? "none"} onValueChange={(v) => {
                     const p = PROJECTS.find((x) => x.name === v);
@@ -255,13 +262,13 @@ export function AddTransactionDialog() {
 
         <div className="sticky bottom-0 -mx-6 -mb-6 flex items-center justify-between gap-2 border-t bg-background px-6 py-3">
           {editing ? (
-            <Button variant="ghost" className="text-destructive" onClick={() => { deleteTxns([editing.id]); toast("Transaction deleted"); closeAdd(); }}>
+            <Button variant="ghost" className="text-destructive" disabled={busy} onClick={async () => { setBusy(true); const ok = await deleteTxns([editing.id]); setBusy(false); if (ok) { toast("Transaction deleted"); closeAdd(); } }}>
               <Trash2 className="size-4" />Delete
             </Button>
           ) : <span />}
           <div className="flex flex-1 justify-end gap-2">
             <Button variant="outline" onClick={closeAdd}>Cancel</Button>
-            <Button onClick={save} className="min-w-32 flex-1 sm:flex-none">{editing ? "Save changes" : "Add transaction"}</Button>
+            <Button onClick={save} disabled={busy} className="min-w-32 flex-1 sm:flex-none">{busy ? "Saving…" : editing ? "Save changes" : "Add transaction"}</Button>
           </div>
         </div>
       </DialogContent>
