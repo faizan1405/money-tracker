@@ -1,13 +1,14 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { configureApiAuth } from "@/lib/api/client";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { ApiError, configureApiAuth } from "@/lib/api/client";
 import { authApi } from "@/lib/api/services";
 import type { AuthUser } from "@/lib/api/contracts";
 import { readMode, writeMode, type AppMode } from "@/lib/api/config";
 
-const SESSION_KEY = "moneyhub-session";
-
-interface Session { token: string; expiresAt: string; user: AuthUser }
-export type AuthStatus = "signed_out" | "signed_in" | "expired";
+/**
+ * Production sign-in uses an HttpOnly cookie set by the server. Nothing secret is kept in
+ * localStorage/sessionStorage: on load we ask the server (/api/auth/me) whether the cookie is valid.
+ */
+export type AuthStatus = "checking" | "signed_out" | "signed_in" | "expired" | "unreachable";
 
 interface AuthCtx {
   mode: AppMode;
@@ -15,75 +16,94 @@ interface AuthCtx {
   modeReady: boolean;
   status: AuthStatus;
   user: AuthUser | null;
+  checkError: ApiError | null;
+  recheck: () => void;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
 const Ctx = createContext<AuthCtx | null>(null);
-
-function loadSession(): Session | null {
-  try {
-    const raw = localStorage.getItem(SESSION_KEY);
-    return raw ? (JSON.parse(raw) as Session) : null;
-  } catch {
-    return null;
-  }
-}
+const LEGACY_KEY = "moneyhub-session"; // token storage from an earlier build — removed on load
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<AppMode>("preview");
   const [modeReady, setModeReady] = useState(false);
-  const [session, setSession] = useState<Session | null>(null);
-  const [status, setStatus] = useState<AuthStatus>("signed_out");
+  const [status, setStatus] = useState<AuthStatus>("checking");
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const [checkError, setCheckError] = useState<ApiError | null>(null);
+  const [checkKey, setCheckKey] = useState(0);
+  const signedIn = useRef(false);
 
-  const expire = useCallback(() => {
-    localStorage.removeItem(SESSION_KEY);
-    setSession(null);
-    setStatus("expired");
+  const expire = useCallback((code?: string) => {
+    setUser(null);
+    setExpiresAt(null);
+    setStatus(code === "session_expired" || signedIn.current ? "expired" : "signed_out");
+    signedIn.current = false;
   }, []);
 
   useEffect(() => {
+    localStorage.removeItem(LEGACY_KEY);
     setModeState(readMode());
-    const s = loadSession();
-    if (s && new Date(s.expiresAt).getTime() > Date.now()) {
-      setSession(s);
-      setStatus("signed_in");
-    } else if (s) {
-      localStorage.removeItem(SESSION_KEY);
-      setStatus("expired");
-    }
     setModeReady(true);
-  }, []);
+    configureApiAuth(expire);
+  }, [expire]);
 
+  // Ask the server whether the session cookie is still valid (survives refresh, never readable by JS).
   useEffect(() => {
-    configureApiAuth(() => session?.token ?? null, expire);
-  }, [session, expire]);
+    if (!modeReady || mode !== "production") return;
+    let cancelled = false;
+    setStatus("checking");
+    setCheckError(null);
+    authApi
+      .me()
+      .then((r) => {
+        if (cancelled) return;
+        signedIn.current = true;
+        setUser(r.user);
+        setExpiresAt(r.expiresAt);
+        setStatus("signed_in");
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        const a = e instanceof ApiError ? e : null;
+        if (a?.kind === "unauthorized") setStatus(a.code === "session_expired" ? "expired" : "signed_out");
+        else if (a?.kind === "config") setStatus("signed_out");
+        else {
+          setCheckError(a ?? new ApiError("network", "Can't reach the Money Hub server."));
+          setStatus("unreachable");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, modeReady, checkKey]);
 
-  // Expire automatically at the token deadline.
+  // Expire in the UI at the server's deadline as well.
   useEffect(() => {
-    if (!session) return;
-    const ms = new Date(session.expiresAt).getTime() - Date.now();
-    const t = setTimeout(expire, Math.max(0, Math.min(ms, 2 ** 31 - 1)));
+    if (!expiresAt) return;
+    const ms = new Date(expiresAt).getTime() - Date.now();
+    const t = setTimeout(() => expire("session_expired"), Math.max(0, Math.min(ms, 2 ** 31 - 1)));
     return () => clearTimeout(t);
-  }, [session, expire]);
+  }, [expiresAt, expire]);
 
   const login = async (email: string, password: string) => {
     const r = await authApi.login({ email, password });
-    const s = { token: r.token, expiresAt: r.expiresAt, user: r.user };
-    localStorage.setItem(SESSION_KEY, JSON.stringify(s));
-    configureApiAuth(() => s.token, expire);
-    setSession(s);
+    signedIn.current = true;
+    setUser(r.user);
+    setExpiresAt(r.expiresAt);
     setStatus("signed_in");
   };
 
   const logout = async () => {
     try {
-      if (session) await authApi.logout();
+      await authApi.logout();
     } catch {
-      /* server logout best-effort; local session is cleared regardless */
+      /* cookie is cleared server-side when reachable; local state is cleared regardless */
     }
-    localStorage.removeItem(SESSION_KEY);
-    setSession(null);
+    signedIn.current = false;
+    setUser(null);
+    setExpiresAt(null);
     setStatus("signed_out");
   };
 
@@ -93,7 +113,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <Ctx.Provider value={{ mode, setMode, modeReady, status, user: session?.user ?? null, login, logout }}>{children}</Ctx.Provider>
+    <Ctx.Provider value={{ mode, setMode, modeReady, status, user, checkError, recheck: () => setCheckKey((n) => n + 1), login, logout }}>
+      {children}
+    </Ctx.Provider>
   );
 }
 
