@@ -115,7 +115,7 @@ export function AddTransactionDialog() {
     } else {
       addTxn(t);
       savePrefs({ accountId: t.accountId, workspace: t.workspace });
-      toast.success(`Added ${t.merchant} · ${t.category}`);
+      toast.success(t.merchant === t.category ? `Added ${t.category}` : `Added ${t.merchant} · ${t.category}`);
     }
     closeAdd();
   };

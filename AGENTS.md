@@ -12,3 +12,4 @@
 ## Project rules
 - Finance math (income/expense/balance rules) lives only in `src/lib/finance/calc.ts` and is covered by `src/test/finance-calc.test.ts`; pages never re-implement it so transfers, card payments and loan principal are never double-counted.
 - Phase 1 is frontend-only: state lives in `src/lib/finance/store.tsx` (React context + localStorage) so it can later be swapped for a real API without touching pages.
+- Duplicate detection (`matchDuplicate`/`dedupe` in calc.ts): only same-reference matches are skipped automatically; look-alikes without references are flagged for the user, so genuine repeat payments are never silently dropped.
