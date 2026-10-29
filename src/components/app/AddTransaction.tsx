@@ -232,7 +232,7 @@ export function AddTransactionDialog() {
               <Field label="Subcategory">
                 <Input value={f.subcategory ?? ""} onChange={(e) => set("subcategory", e.target.value)} />
               </Field>
-              {isBiz && (
+              {isBiz && mode === "preview" && (
                 <Field label="Client / project">
                   <Select value={f.project ?? "none"} onValueChange={(v) => {
                     const p = PROJECTS.find((x) => x.name === v);

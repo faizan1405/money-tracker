@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFinance, useScoped } from "@/lib/finance/store";
 import { formatDate, formatINR } from "@/lib/finance/format";
-import type { Due } from "@/lib/finance/types";
+import type { Due, Transaction } from "@/lib/finance/types";
 import { EmptyState, PageHeader, Pill, Progress } from "@/components/app/ui-bits";
 
 export const Route = createFileRoute("/loans")({

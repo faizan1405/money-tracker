@@ -78,7 +78,7 @@ export function FlowPage({ mode }: { mode: "in" | "out" }) {
         </Panel>
       </div>
 
-      {mode === "in" && f.workspace !== "personal" && (
+      {mode === "in" && f.workspace !== "personal" && f.mode === "preview" && (
         <Panel title="Client projects · invoiced vs received" className="mt-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {PROJECTS.map((p) => {
