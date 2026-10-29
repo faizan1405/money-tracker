@@ -15,6 +15,8 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { FinanceProvider } from "@/lib/finance/store";
 import { AppShell } from "@/components/app/AppShell";
 import { Toaster } from "@/components/ui/sonner";
+import { AuthProvider } from "@/lib/auth/session";
+import { ProductionGate } from "@/components/app/ProductionGate";
 
 function NotFoundComponent() {
   return (
@@ -121,12 +123,16 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <FinanceProvider>
-        <AppShell>
-          <Outlet />
-        </AppShell>
-        <Toaster position="top-center" />
-      </FinanceProvider>
+      <AuthProvider>
+        <FinanceProvider>
+          <ProductionGate>
+            <AppShell>
+              <Outlet />
+            </AppShell>
+          </ProductionGate>
+          <Toaster position="top-center" />
+        </FinanceProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

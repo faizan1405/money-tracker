@@ -7,6 +7,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useFinance } from "@/lib/finance/store";
+import { useAuth } from "@/lib/auth/session";
+import { LogOut } from "lucide-react";
 import type { WorkspaceFilter } from "@/lib/finance/types";
 import { cn } from "@/lib/utils";
 import { AddTransactionDialog } from "./AddTransaction";
@@ -33,7 +35,7 @@ function Logo({ small }: { small?: boolean }) {
       <span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground">
         <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 18V7l8 6 8-6v11" /></svg>
       </span>
-      {!small && <div className="leading-tight"><div className="font-display text-lg font-semibold">Money Hub</div><div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">AI · Preview</div></div>}
+      {!small && <div className="leading-tight"><div className="font-display text-lg font-semibold">Money Hub</div><div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">AI · {useAuth().mode === "production" ? "Live" : "Preview"}</div></div>}
     </div>
   );
 }
@@ -56,6 +58,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
 export function AppShell({ children }: { children: ReactNode }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const { openAdd } = useFinance();
+  const { mode, user, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [more, setMore] = useState(false);
   const [chat, setChat] = useState(false);
@@ -94,7 +97,14 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="lg:hidden"><Logo small /></div>
             <WorkspaceSwitcher />
             <div className="flex items-center gap-2">
-              <span className="hidden rounded-full bg-warning-soft px-2.5 py-1 text-[11px] font-semibold text-warning sm:inline">Preview Mode · demo data</span>
+              {mode === "preview" ? (
+                <span className="hidden rounded-full bg-warning-soft px-2.5 py-1 text-[11px] font-semibold text-warning sm:inline">Preview Mode · demo data</span>
+              ) : (
+                <>
+                  <span className="hidden max-w-[180px] truncate rounded-full bg-primary-soft px-2.5 py-1 text-[11px] font-semibold text-primary sm:inline" title={user?.email}>Live · {user?.name || user?.email}</span>
+                  <Button variant="ghost" size="icon" aria-label="Sign out" onClick={() => void logout()}><LogOut className="size-4" /></Button>
+                </>
+              )}
               <Button onClick={() => openAdd()} className="hidden sm:inline-flex"><Plus className="size-4" />Add Transaction</Button>
             </div>
           </div>
