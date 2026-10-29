@@ -17,3 +17,4 @@
 - Store mutations return `Promise<boolean>` that resolves true only after the server confirms; pages show success toasts only then, and identical in-flight writes are dropped to prevent double entries.
 - Duplicate detection (`matchDuplicate`/`dedupe` in calc.ts): only same-reference matches are skipped automatically; look-alikes without references are flagged for the user, so genuine repeat payments are never silently dropped.
 - The real API lives in `server/` (Express + Prisma + MySQL, its own package, tests and README); it is not part of the Lovable app build. Money is integer paise there and `server/src/domain/ledger.ts` must stay in sync with `src/lib/finance/calc.ts`.
+- Statement imports: numbers (dates, paise, refs, balances, reconciliation) come only from deterministic parsing in `server/src/statements/`; AI (OpenRouter, server-only, ZDR + strict JSON) only suggests type/category/merchant from masked text, so it can never invent or change money.

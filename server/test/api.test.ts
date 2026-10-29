@@ -230,7 +230,6 @@ describe("dashboard + other endpoints", () => {
   it("unfinished modules return 501, never fake success", async () => {
     const { app, auth } = await setup(await makeRepo());
     expect((await request(app).post("/api/ai/chat").set(auth).send({ messages: [] })).status).toBe(501);
-    expect((await request(app).get("/api/statements").set(auth)).status).toBe(501);
   });
 
   it("health reports the database honestly", async () => {

@@ -1,6 +1,6 @@
 # Money Hub AI — Backend Handoff (for Antigravity)
 
-> Phase 2B server code now exists in `server/` — see `server/README.md`. Extra endpoint: `GET /api/accounts/balances`. Unfinished modules return 501.
+> Server code lives in `server/` — see `server/README.md`. Phase 3A added real statement import + AI review. Extra endpoints: `GET /api/accounts/balances`, `POST /api/statements/:id/discard`. Unfinished modules return 501.
 
 Stack: Node.js + Express + Prisma + MySQL (Hostinger). OpenRouter is called **only from the server**.
 Frontend types live in `src/lib/api/contracts.ts` (source of truth); calls in `src/lib/api/services.ts`; transport in `src/lib/api/client.ts`.
@@ -11,7 +11,7 @@ Frontend types live in `src/lib/api/contracts.ts` (source of truth); calls in `s
 | `VITE_API_BASE_URL` | frontend build | Default server address, e.g. `https://api.yourdomain.com` (no trailing slash). Users can override in Settings → Data & privacy. |
 
 ## Backend environment (suggested)
-`DATABASE_URL` (mysql://…), `JWT_SECRET`, `JWT_EXPIRES_IN` (e.g. `12h`), `CORS_ORIGIN` (the frontend origin), `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `UPLOAD_MAX_MB`, `PORT`.
+`DATABASE_URL` (mysql://…), `JWT_SECRET`, `JWT_EXPIRES_IN` (e.g. `12h`), `CORS_ORIGIN` (the frontend origin), `OPENROUTER_API_KEY`, `AI_MODEL_FAST`, `AI_MODEL_STRONG`, `AI_MAX_COST_PER_STATEMENT_USD`, `AI_DAILY_COST_LIMIT_USD`, `UPLOAD_MAX_MB`, `PORT`.
 
 ## Conventions
 - JSON everywhere except statement upload (multipart). Money = INR rupees as numbers. Dates `yyyy-mm-dd`.
@@ -38,10 +38,10 @@ Frontend types live in `src/lib/api/contracts.ts` (source of truth); calls in `s
 | GET | `/api/accounts`, `/api/dues`, `/api/budgets` | — | lists |
 | PUT | `/api/collections/:key` (`accounts,dues,budgets,goals,recurring,rules,customCategories`) | `{ items: [...] }` | saved list (full replace) |
 | GET | `/api/analytics/summary?from&to&workspace` | — | `AnalyticsSummary` |
-| POST | `/api/statements` (multipart: `file, accountId, workspace`) | — | `StatementImport` |
+| POST | `/api/statements` (multipart: `accountId, workspace, password?, file`) | — | `StatementImport` (422 codes: `password_required`, `bad_password`, `scanned`, `unreadable`, `unsupported`; 415 for other file types) |
 | GET | `/api/statements`, `/api/statements/:id` | — | `StatementImport[]` / `StatementImport` |
 | GET | `/api/statements/:id/review` | — | `ReviewItem[]` |
-| POST | `/api/statements/:id/review` | `{ decisions: ReviewDecision[] }` | `{ created, skipped }` |
+| POST | `/api/statements/:id/review` | `{ decisions: ReviewDecision[] }` | `{ created, skipped, rulesLearned }` (409 if already saved) |
 | POST | `/api/ai/chat` | `ChatRequest` | `ChatResponse` |
 
 Statement status flow: `uploaded → processing → needs_review → completed` (or `failed` with `error`). Nothing is written to the ledger until the review POST.

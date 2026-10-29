@@ -3,6 +3,7 @@ import {
   ConflictError, DEFAULT_WORKSPACES, DuplicateRefError, type AccountRec, type CategoryRec, type CollectionKey, type Collections,
   type OwnerRec, type Repo, type SessionRec, type TxnFilter, type TxnInput, type TxnRec, type WorkspaceRec,
 } from "./types.js";
+import type { ImportRec } from "../statements/types.js";
 
 /** In-memory repo for automated tests only. Mirrors PrismaRepo semantics (ownership, atomic batches, unique refs). */
 export class MemoryRepo implements Repo {
@@ -14,6 +15,8 @@ export class MemoryRepo implements Repo {
   cats = new Map<string, CategoryRec[]>();
   cols = new Map<string, Collections>();
   logs: { ownerId: string; action: string }[] = [];
+  imports = new Map<string, ImportRec[]>();
+  failNextComplete = false; // test hook: simulate a DB failure mid-approval
   down = false;
 
   async ping() { if (this.down) throw new Error("db down"); }
@@ -97,4 +100,28 @@ export class MemoryRepo implements Repo {
   async getCollection<K extends CollectionKey>(ownerId: string, key: K) { return this.colsOf(ownerId)[key]; }
   async replaceCollection<K extends CollectionKey>(ownerId: string, key: K, items: Collections[K]) { this.colsOf(ownerId)[key] = items; return items; }
   async audit(ownerId: string, action: string) { this.logs.push({ ownerId, action }); }
+  private imps(ownerId: string) { let l = this.imports.get(ownerId); if (!l) { l = []; this.imports.set(ownerId, l); } return l; }
+  async createImport(ownerId: string, i: Omit<ImportRec, "id" | "createdAt">) {
+    const r: ImportRec = structuredClone({ ...i, id: randomUUID(), createdAt: new Date().toISOString() });
+    this.imps(ownerId).push(r);
+    return structuredClone(r);
+  }
+  async getImport(ownerId: string, id: string) { const r = this.imps(ownerId).find((x) => x.id === id); return r ? structuredClone(r) : null; }
+  async listImports(ownerId: string) { return [...this.imps(ownerId)].reverse().map((r) => ({ ...structuredClone(r), rows: null })); }
+  async findImportsByHash(ownerId: string, accountId: string, fileHash: string) { return this.imps(ownerId).filter((r) => r.accountId === accountId && r.fileHash === fileHash).map((r) => structuredClone(r)); }
+  async updateImport(ownerId: string, id: string, patch: Partial<Pick<ImportRec, "status" | "error" | "summary" | "rows">>) {
+    const r = this.imps(ownerId).find((x) => x.id === id);
+    if (!r) throw new ConflictError("Import not found");
+    Object.assign(r, structuredClone(patch));
+    return structuredClone(r);
+  }
+  async completeImport(ownerId: string, id: string, txns: TxnInput[], summary: ImportRec["summary"]) {
+    const r = this.imps(ownerId).find((x) => x.id === id);
+    if (!r || r.status !== "needs_review") throw new ConflictError("This statement has already been saved");
+    const before = this.all(ownerId);
+    const created = await this.createTxns(ownerId, txns);
+    if (this.failNextComplete) { this.failNextComplete = false; this.txns.set(ownerId, before); throw new Error("simulated db failure"); }
+    Object.assign(r, { status: "completed", rows: null, summary: structuredClone(summary) });
+    return created;
+  }
 }

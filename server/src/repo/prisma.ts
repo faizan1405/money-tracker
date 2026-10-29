@@ -5,6 +5,7 @@ import {
   ConflictError, DEFAULT_WORKSPACES, DuplicateRefError, type AccountRec, type CategoryRec, type CollectionKey, type Collections,
   type OwnerRec, type Repo, type SessionRec, type TxnFilter, type TxnInput, type TxnRec, type WorkspaceRec,
 } from "./types.js";
+import type { ImportRec, ImportSummary, ReviewRow } from "../statements/types.js";
 
 const d = (s: string) => new Date(`${s}T00:00:00.000Z`);
 const ds = (x: Date) => x.toISOString().slice(0, 10);
@@ -33,6 +34,15 @@ function txnToDb(ownerId: string, t: TxnInput) {
     source: t.source, ref: t.ref ?? null,
   };
 }
+type DbImport = Prisma.StatementImportGetPayload<object>;
+function importFromDb(i: DbImport, withRows = true): ImportRec {
+  return {
+    id: i.id, accountId: i.accountId, workspace: i.workspace, fileName: i.fileName, fileHash: i.fileHash, status: i.status as ImportRec["status"],
+    error: i.error, createdAt: i.createdAt.toISOString(), summary: (i.summary as unknown as ImportSummary | null) ?? null,
+    rows: withRows ? ((i.rows as unknown as ReviewRow[] | null) ?? null) : null,
+  };
+}
+const json = (v: unknown) => (v == null ? Prisma.DbNull : (v as Prisma.InputJsonValue)); // SQL NULL, so cleared rows really are gone
 function isUniqueViolation(e: unknown) {
   return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
 }
@@ -236,5 +246,45 @@ export class PrismaRepo implements Repo {
     await this.db.auditLog.create({
       data: { ownerId, action, entity, entityId: entityId ?? null, detail: detail === undefined ? Prisma.JsonNull : (detail as Prisma.InputJsonValue), ip: ip ?? null },
     });
+  }
+
+  async createImport(ownerId: string, i: Omit<ImportRec, "id" | "createdAt">) {
+    const r = await this.db.statementImport.create({ data: { ownerId, accountId: i.accountId, workspace: i.workspace, fileName: i.fileName, fileHash: i.fileHash, status: i.status, error: i.error ?? null, summary: json(i.summary), rows: json(i.rows) } });
+    return importFromDb(r);
+  }
+  async getImport(ownerId: string, id: string) {
+    const r = await this.db.statementImport.findFirst({ where: { id, ownerId } });
+    return r ? importFromDb(r) : null;
+  }
+  async listImports(ownerId: string) {
+    const rs = await this.db.statementImport.findMany({ where: { ownerId }, orderBy: { createdAt: "desc" }, take: 50, select: { id: true, ownerId: true, accountId: true, workspace: true, fileName: true, fileHash: true, status: true, error: true, summary: true, createdAt: true, updatedAt: true } });
+    return rs.map((r) => importFromDb({ ...r, rows: null }, false));
+  }
+  async findImportsByHash(ownerId: string, accountId: string, fileHash: string) {
+    const rs = await this.db.statementImport.findMany({ where: { ownerId, accountId, fileHash } });
+    return rs.map((r) => importFromDb(r, false));
+  }
+  async updateImport(ownerId: string, id: string, patch: Partial<Pick<ImportRec, "status" | "error" | "summary" | "rows">>) {
+    const n = await this.db.statementImport.updateMany({
+      where: { id, ownerId },
+      data: { ...(patch.status ? { status: patch.status } : {}), ...("error" in patch ? { error: patch.error ?? null } : {}), ...("summary" in patch ? { summary: json(patch.summary) } : {}), ...("rows" in patch ? { rows: json(patch.rows) } : {}) },
+    });
+    if (!n.count) throw new ConflictError("Import not found");
+    return (await this.getImport(ownerId, id))!;
+  }
+  async completeImport(ownerId: string, id: string, txns: TxnInput[], summary: ImportRec["summary"]) {
+    try {
+      return await this.db.$transaction(async (tx) => {
+        // Conditional status flip first: a second concurrent approval updates 0 rows and aborts.
+        const n = await tx.statementImport.updateMany({ where: { id, ownerId, status: "needs_review" }, data: { status: "completed", rows: Prisma.DbNull, summary: json(summary) } });
+        if (!n.count) throw new ConflictError("This statement has already been saved");
+        const out: TxnRec[] = [];
+        for (const t of txns) out.push(txnFromDb(await tx.transaction.create({ data: { ...txnToDb(ownerId, t), importId: id } })));
+        return out;
+      });
+    } catch (e) {
+      if (isUniqueViolation(e)) throw new DuplicateRefError(txns.find((t) => t.ref)?.ref ?? "");
+      throw e;
+    }
   }
 }

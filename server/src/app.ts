@@ -11,15 +11,18 @@ import { AccountBody, CollectionSchemas, TxnBody, accountFromBody, accountToDto,
 import { HttpError, ah, errorHandler, notImplemented } from "./http.js";
 import { toRupees } from "./money.js";
 import type { AccountRec, CollectionKey, Repo, TxnInput } from "./repo/types.js";
+import { OpenRouterClient } from "./ai/openrouter.js";
+import { registerStatementRoutes } from "./statements/routes.js";
 
-export interface AppDeps { repo: Repo; config: AppConfig; now?: () => number; loginLimit?: number }
+/** `ai`: pass a client (tests use a fake fetch); default builds one from config, or null when no key is set. */
+export interface AppDeps { repo: Repo; config: AppConfig; now?: () => number; loginLimit?: number; ai?: OpenRouterClient | null }
 
 const owner = (req: Request) => {
   if (!req.ownerId) throw new HttpError(401, "Please sign in", "unauthenticated");
   return req.ownerId;
 };
 
-export function createApp({ repo, config, now = Date.now, loginLimit = 10 }: AppDeps) {
+export function createApp({ repo, config, now = Date.now, loginLimit = 10, ai = config.ai ? new OpenRouterClient(config.ai) : null }: AppDeps) {
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", 1); // Hostinger runs Node behind a proxy
@@ -40,7 +43,7 @@ export function createApp({ repo, config, now = Date.now, loginLimit = 10 }: App
   app.get("/api/health", ah(async (_req, res) => {
     try {
       await repo.ping();
-      res.json({ ok: true, version: config.version });
+      res.json({ ok: true, version: config.version, ai: !!ai });
     } catch {
       res.status(503).json({ ok: false, version: config.version, message: "Database unavailable" });
     }
@@ -225,8 +228,10 @@ export function createApp({ repo, config, now = Date.now, loginLimit = 10 }: App
     });
   }));
 
+  // ---------- Statement import + AI review ----------
+  registerStatementRoutes(app, { repo, config, ai, owner, validate });
+
   // ---------- Not yet implemented: explicit errors, never fake success ----------
-  app.all(["/api/statements", "/api/statements/*"], () => { throw notImplemented("Statement import"); });
   app.post("/api/ai/chat", () => { throw notImplemented("The AI assistant"); });
   app.all(["/api/invoices*", "/api/clients*", "/api/projects*", "/api/reports*"], () => { throw notImplemented("This module"); });
 
