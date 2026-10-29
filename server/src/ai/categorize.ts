@@ -63,7 +63,7 @@ export async function categorizeWithAi(client: OpenRouterClient, lines: Categori
   const unsure = lines.filter((l) => (out.get(l.i)?.confidence ?? 0) < 0.6);
   if (unsure.length && client.cfg.strongModel && client.cfg.strongModel !== client.cfg.fastModel) {
     try { for (let k = 0; k < unsure.length; k += 20) await run(client.cfg.strongModel, unsure.slice(k, k + 20)); }
-    catch (e) { if (!(e instanceof AiError && e.code === "budget_exceeded")) throw e; } // keep fast-model answers
+    catch (e) { if (!(e instanceof AiError && (e.code === "budget_exceeded" || e.code === "privacy_unavailable"))) throw e; } // keep fast-model answers
   }
   return { items: [...out.values()], costUsd: budget.spentUsd, calls, model: client.cfg.fastModel };
 }
