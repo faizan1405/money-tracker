@@ -43,3 +43,15 @@ describe("API client", () => {
     expect(normalizeUrl("https://a.com///")).toBe("https://a.com");
   });
 });
+
+describe("API client timeout", () => {
+  it("gives up after 15 seconds with a timeout error", async () => {
+    vi.useFakeTimers();
+    const f = vi.fn((_u: string, init: RequestInit) => new Promise<Response>((_r, rej) => init.signal?.addEventListener("abort", () => rej(new DOMException("aborted", "AbortError")))));
+    const p = apiRequest("/api/x", { baseUrl: "https://api.test", fetchImpl: f as unknown as typeof fetch });
+    const check = expect(p).rejects.toMatchObject({ kind: "timeout" });
+    await vi.advanceTimersByTimeAsync(15001);
+    await check;
+    vi.useRealTimers();
+  });
+});
