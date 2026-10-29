@@ -1,6 +1,6 @@
 import { apiRequest } from "./client";
 import type {
-  AnalyticsSummary, BootstrapResponse, CategoryDTO, ChatRequest, ChatResponse, CollectionKey, CreateTransaction,
+  AiUsageResponse, AnalyticsSummary, BootstrapResponse, ConversationDetail, ConversationSummary, InsightSuggestions, InsightsResponse, CategoryDTO, ChatRequest, ChatResponse, CollectionKey, CreateTransaction,
   HealthResponse, LoginRequest, LoginResponse, Paginated, ReviewDecision, ReviewItem, StatementImport, TransactionDTO,
   TransactionQuery, WorkspaceDTO,
 } from "./contracts";
@@ -65,4 +65,12 @@ export const statementsApi = {
   decide: (id: string, decisions: ReviewDecision[]) => apiRequest<{ created: number; skipped: number; rulesLearned: number }>(`/api/statements/${encodeURIComponent(id)}/review`, { method: "POST", body: { decisions } }),
 };
 
-export const aiApi = { chat: (b: ChatRequest) => apiRequest<ChatResponse>("/api/ai/chat", { method: "POST", body: b }) };
+export const aiApi = {
+  chat: (b: ChatRequest) => apiRequest<ChatResponse>("/api/ai/chat", { method: "POST", body: b }),
+  conversations: () => apiRequest<{ items: ConversationSummary[]; retentionDays: number }>("/api/ai/conversations"),
+  conversation: (id: string) => apiRequest<ConversationDetail>(`/api/ai/conversations/${encodeURIComponent(id)}`),
+  deleteConversation: (id: string) => apiRequest<void>(`/api/ai/conversations/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  insights: (workspace: string) => apiRequest<InsightsResponse>(`/api/ai/insights${qs({ workspace })}`),
+  suggest: (workspace: string) => apiRequest<InsightSuggestions>("/api/ai/insights/suggest", { method: "POST", body: { workspace } }),
+  usage: () => apiRequest<AiUsageResponse>("/api/ai/usage"),
+};

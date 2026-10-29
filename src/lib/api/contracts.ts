@@ -133,12 +133,55 @@ export interface ReviewEdit {
 }
 export interface ReviewDecision { id: string; decision: "accept" | "skip"; edited?: ReviewEdit; remember?: boolean }
 
-export interface ChatMessage { role: "user" | "assistant"; content: string }
-export interface ChatRequest { messages: ChatMessage[]; workspace?: WorkspaceId | "all" }
-export interface ChatResponse {
-  reply: string;
-  rows?: { label: string; value: string; tone?: "positive" | "negative" }[];
-  sources?: { transactionId: string }[];
+/** Assistant: every amount is computed by the backend (paise); the AI only explains them. */
+export interface ChatRequest { message: string; conversationId?: string; workspace?: WorkspaceId | "all" | string }
+export interface AssistantRange { from: string; to: string; label: string; partial?: boolean }
+export interface AssistantFigure { key: string; label: string; paise?: number; text?: string; tone?: "positive" | "negative" }
+export interface AssistantFacts {
+  metric: string;
+  workspace: string;
+  workspaceLabel: string;
+  period: AssistantRange;
+  comparePeriod?: AssistantRange;
+  figures: AssistantFigure[];
+  rowsTitle?: string;
+  rows?: { label: string; paise: number; sub?: string }[];
+  transactions?: { id: string; date: string; merchant: string; category: string; paise: number }[];
+  chart?: { title: string; series: string[]; points: { label: string; a: number; b?: number }[] };
+  notes: string[];
+  empty: boolean;
+}
+export interface AssistantMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
+  facts?: AssistantFacts;
+  suggestions?: string[];
+  language?: "en" | "hi" | "hinglish";
+  /** false → the AI explanation was unavailable or failed checks; the text is a plain backend summary. */
+  aiExplained?: boolean;
+  context?: { metric: string; workspace: string; period: string };
+}
+export interface ChatResponse { conversationId: string; message: AssistantMessage; usage: { costUsd: number; ms: number; calls: number } }
+export interface ConversationSummary { id: string; title: string; createdAt: string; updatedAt: string }
+export interface ConversationDetail extends ConversationSummary { messages: AssistantMessage[] }
+export interface Insight {
+  id: string;
+  kind: string;
+  severity: "info" | "warning" | "alert";
+  title: string;
+  detail: string;
+  period: string;
+  figures: { label: string; value: string }[];
+  transactionIds?: string[];
+}
+export interface InsightsResponse { workspace: string; asOf: string; items: Insight[] }
+export interface InsightSuggestions { suggestions: { text: string; basedOn: string }[]; usage?: { costUsd: number; ms: number } }
+export interface AiUsageResponse {
+  configured: boolean; day: string; month: string; models: { fast: string; strong: string } | null;
+  spentTodayUsd: number; spentMonthUsd: number; requestsToday: number; requestsMonth: number; promptTokensMonth: number; completionTokensMonth: number;
+  limits: { perRequestUsd: number; dailyUsd: number; monthlyUsd: number } | null;
 }
 
 export interface HealthResponse { ok: boolean; version: string }
