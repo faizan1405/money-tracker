@@ -1,5 +1,7 @@
 # Money Hub AI — Backend Handoff (for Antigravity)
 
+> Phase 2B server code now exists in `server/` — see `server/README.md`. Extra endpoint: `GET /api/accounts/balances`. Unfinished modules return 501.
+
 Stack: Node.js + Express + Prisma + MySQL (Hostinger). OpenRouter is called **only from the server**.
 Frontend types live in `src/lib/api/contracts.ts` (source of truth); calls in `src/lib/api/services.ts`; transport in `src/lib/api/client.ts`.
 
