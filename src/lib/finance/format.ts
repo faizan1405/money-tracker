@@ -5,6 +5,12 @@ export function formatINR(n: number) {
   return inr.format(Math.round(n));
 }
 
+const inrExact = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** Paise-exact display, for statement review and reconciliation where ₹450.50 must not show as ₹451. */
+export function formatINRExact(n: number) {
+  return inrExact.format(n);
+}
+
 export function formatCompact(n: number) {
   const a = Math.abs(n);
   const s = n < 0 ? "-" : "";

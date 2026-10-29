@@ -11,7 +11,7 @@ import { statementsApi } from "@/lib/api/services";
 import { ApiError } from "@/lib/api/client";
 import type { ReviewEdit, ReviewItem, StatementImport } from "@/lib/api/contracts";
 import { BUSINESS_CATEGORIES, INCOME_CATEGORIES, PERSONAL_CATEGORIES, SYSTEM_CATEGORIES, WORKSPACES } from "@/lib/finance/data";
-import { formatINR as inr } from "@/lib/finance/format";
+import { formatINRExact as inr } from "@/lib/finance/format";
 
 const TYPES = [
   ["expense", "Money out (expense)"], ["income", "Money in (income)"], ["refund", "Refund"], ["transfer", "Transfer between my accounts"],
