@@ -143,7 +143,7 @@ export function LiveAssistant({ compact = false }: { compact?: boolean }) {
         )}
         <div ref={end} />
       </div>
-      <form className="mt-3 flex items-end gap-2" onSubmit={(e) => { e.preventDefault(); void ask(q); }}>
+      <form className={cn("mt-3 flex items-end gap-2", !compact && "max-md:pr-16")} onSubmit={(e) => { e.preventDefault(); void ask(q); }}>
         <div className="relative flex-1">
           <Textarea
             value={q} maxLength={MAX} rows={1} disabled={busy}
@@ -162,15 +162,15 @@ export function LiveAssistant({ compact = false }: { compact?: boolean }) {
   if (compact) return chat;
 
   return (
-    <Tabs defaultValue="chat" className="flex h-full min-h-0 flex-col">
+    <Tabs defaultValue="chat" className="flex h-full min-h-0 min-w-0 flex-col">
       <TabsList className="mb-3 self-start">
         <TabsTrigger value="chat">Chat</TabsTrigger>
         <TabsTrigger value="insights">Insights</TabsTrigger>
         <TabsTrigger value="usage">AI usage</TabsTrigger>
       </TabsList>
       <TabsContent value="chat" className="mt-0 min-h-0 flex-1">
-        <div className="grid h-full min-h-0 gap-4 md:grid-cols-[220px_1fr]">
-          <aside className="flex min-h-0 flex-col gap-2 md:border-r md:pr-4">
+        <div className="flex h-full min-h-0 flex-col gap-3 md:grid md:grid-cols-[220px_minmax(0,1fr)] md:gap-4">
+          <aside className="flex min-w-0 shrink-0 flex-col gap-2 md:min-h-0 md:border-r md:pr-4">
             <Button variant="outline" size="sm" onClick={newChat} className="justify-start"><MessageSquarePlus className="size-4" />New conversation</Button>
             <div className="flex gap-2 overflow-x-auto md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto">
               {convs.length === 0 && <p className="hidden px-1 text-xs text-muted-foreground md:block">No saved conversations yet.</p>}
@@ -186,7 +186,7 @@ export function LiveAssistant({ compact = false }: { compact?: boolean }) {
             </div>
             {retention && <p className="hidden text-[10px] leading-snug text-muted-foreground md:block">Conversations are kept for {retention} days on your server, then deleted.</p>}
           </aside>
-          <div className="min-h-0">{chat}</div>
+          <div className="min-h-0 min-w-0 flex-1">{chat}</div>
         </div>
       </TabsContent>
       <TabsContent value="insights" className="mt-0 min-h-0 flex-1 overflow-y-auto"><InsightsPanel /></TabsContent>
