@@ -1,6 +1,6 @@
 {
   "name": "moneyhub-server",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -15,7 +15,8 @@
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "owner:create": "tsx scripts/create-owner.ts",
-    "ai:smoke": "tsx --env-file-if-exists=.env scripts/ai-smoke.ts"
+    "ai:smoke": "tsx --env-file-if-exists=.env scripts/ai-smoke.ts",
+    "ai:assistant-live": "tsx --env-file-if-exists=.env scripts/assistant-live.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
