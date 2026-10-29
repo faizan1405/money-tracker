@@ -13,7 +13,8 @@ export async function makeRepo(): Promise<Repo> {
   const { PrismaClient } = await import("@prisma/client");
   const { PrismaRepo } = await import("../src/repo/prisma.js");
   prisma ??= new PrismaClient({ datasourceUrl: process.env["TEST_DATABASE_URL"]! });
-  await prisma.owner.deleteMany(); // cascades to every owned table
+  await prisma.transaction.deleteMany(); // accounts are protected while transactions reference them
+  await prisma.owner.deleteMany(); // cascades to every other owned table
   return new PrismaRepo(prisma);
 }
 
