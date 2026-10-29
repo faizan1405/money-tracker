@@ -85,7 +85,8 @@ export function accountToDto(a: AccountRec) {
   };
 }
 
-const twoDp = money.refine((n) => { try { toPaise(n); return true; } catch { return false; } }, "Max 2 decimals");
+const dp2 = (n: number) => { try { toPaise(n); return true; } catch { return false; } };
+const twoDp = { positive: () => money.positive().refine(dp2, "Max 2 decimals"), nonnegative: () => money.nonnegative().refine(dp2, "Max 2 decimals") };
 export const CollectionSchemas = {
   dues: z.array(z.object({
     id: z.string(), direction: z.enum(["i_owe", "owed_to_me"]), kind: z.enum(["loan", "personal", "client", "emi"]), party: z.string().min(1).max(160),
