@@ -7,7 +7,7 @@ import { MemoryRepo } from "../src/repo/memory.js";
 import { maskForAi, parseAmount, parseCsv, parseDate, parseStatementText } from "../src/statements/parse.js";
 import { pdfToText } from "../src/statements/pdf.js";
 import { CARD_CSV, HDFC_CSV, SBI_PDF_PAGES, fakeOpenRouter, makePdf, type FakeAi } from "./fixtures.js";
-import { ORIGIN, PASSWORD, config, cookieToken, setup } from "./helpers.js";
+import { ORIGIN, PASSWORD, config, cookieToken, makeRepo, onPrisma, setup, tx } from "./helpers.js";
 
 const aiCfg = { apiKey: "test-key", fastModel: "openai/gpt-4.1-mini", strongModel: "openai/gpt-5-mini", timeoutMs: 200, maxRetries: 1, maxCostPerStatementUsd: 0.05, dailyCostLimitUsd: 1 };
 
@@ -76,7 +76,7 @@ describe("statement import API", () => {
   const appWith = (client: OpenRouterClient | null) => createApp({ repo, config, ai: client });
 
   beforeEach(async () => {
-    repo = new MemoryRepo();
+    repo = (await makeRepo()) as MemoryRepo; // MySQL when TEST_DATABASE_URL is set
     ai = fakeOpenRouter();
     ctx = await setup(repo);
     ctx.app = appWith(new OpenRouterClient(aiCfg, ai.fetch, { usage: () => {}, error: () => {} }, async () => {}));
@@ -214,13 +214,25 @@ describe("statement import API", () => {
     expect(ai.calls).toHaveLength(1);
   });
 
-  it("database failure during approval rolls back: nothing saved, import still awaiting review", async () => {
+  it.skipIf(onPrisma)("database failure during approval rolls back: nothing saved, import still awaiting review", async () => {
     const imp = (await up(ctx.app, "card.csv", CARD_CSV, ctx.card)).body;
     const rows = (await request(ctx.app).get(`/api/statements/${imp.id}/review`).set(ctx.auth)).body as { id: string }[];
     repo.failNextComplete = true;
     const r = await request(ctx.app).post(`/api/statements/${imp.id}/review`).set(ctx.auth).send({ decisions: rows.map((x) => ({ id: x.id, decision: "accept" })) });
     expect(r.status).toBe(500);
     expect((await request(ctx.app).get("/api/transactions").set(ctx.auth)).body.total).toBe(0);
+    expect((await request(ctx.app).get(`/api/statements/${imp.id}`).set(ctx.auth)).body.status).toBe("needs_review");
+  });
+
+  it("a reference clash at save time rolls back the whole approval", async () => {
+    const imp = (await up(ctx.app, "hdfc.csv", HDFC_CSV, ctx.bank)).body;
+    const rows = (await request(ctx.app).get(`/api/statements/${imp.id}/review`).set(ctx.auth)).body as { id: string; description: string }[];
+    // Someone enters the salary manually (same bank ref) after the upload but before approval.
+    expect((await request(ctx.app).post("/api/transactions").set(ctx.auth).send({ items: [tx({ type: "income", amount: 85000, accountId: ctx.bank, category: "Salary", ref: "NEFT0001" })] })).status).toBe(201);
+    const pick = rows.filter((r) => /SALARY|SWIGGY-swiggy/.test(r.description));
+    const r = await request(ctx.app).post(`/api/statements/${imp.id}/review`).set(ctx.auth).send({ decisions: pick.map((x) => ({ id: x.id, decision: "accept" })) });
+    expect(r.status).toBe(409);
+    expect((await request(ctx.app).get("/api/transactions").set(ctx.auth)).body.total).toBe(1);
     expect((await request(ctx.app).get(`/api/statements/${imp.id}`).set(ctx.auth)).body.status).toBe("needs_review");
   });
 
