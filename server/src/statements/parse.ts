@@ -80,8 +80,10 @@ const RAILS = /\b(UPI|IMPS|NEFT|RTGS|NACH|ACH)\b/i;
 /** Pulls a bank reference out of a narration only when the rail format makes it unambiguous. */
 export function extractRef(desc: string): string | undefined {
   if (!RAILS.test(desc)) return undefined;
-  const m = /\b(\d{12})\b/.exec(desc) ?? /\b([A-Z]{4}[RHN]?\d{9,18})\b/.exec(desc) ?? /\b([A-Z]{4}[0-9A-Z]{8,18})\b/.exec(desc);
-  return m?.[1];
+  const m = /\b(\d{12})\b/.exec(desc) ?? /\b([A-Z]{4}[RHN]?\d{9,18})\b/.exec(desc) ?? /\b(?=[A-Z0-9]*\d)([A-Z]{4}[0-9A-Z]{8,18})\b/.exec(desc);
+  if (!m) return undefined;
+  // A reversal reuses the original payment's reference; keep it distinct so both rows can exist.
+  return /^\s*(rev|reversal|rvsl)\b/i.test(desc) ? `REV-${m[1]}` : m[1];
 }
 
 const SUMMARY = /\b(opening|closing|brought forward|carried forward|b\/f|c\/f|total|statement summary|page \d+|generated on|end of statement)\b/i;
@@ -159,8 +161,8 @@ export function parseCsv(text: string): ParsedStatement {
   const iDate = col(h, /^(txn|transaction|tran)\.?\s*date/, /^date$/, /date/);
   const iDesc = col(h, /narration/, /description/, /particulars/, /details/, /remarks/, /^transaction$/);
   const iRef = col(h, /utr|ref|chq|cheque/);
-  const iDebit = col(h, /debit|withdrawal|^dr\b|paid out/);
-  const iCredit = col(h, /credit|deposit|^cr\b|paid in/);
+  const iDebit = col(h, /debit|withdrawal|^dr\.?$|paid out/);
+  const iCredit = col(h, /credit|deposit|^cr\.?$|paid in/);
   const iAmount = iDebit < 0 && iCredit < 0 ? col(h, /amount/) : -1;
   const iType = col(h, /^(dr\s*\/\s*cr|cr\s*\/\s*dr|type|txn type)$/);
   const iBal = col(h, /balance/);
