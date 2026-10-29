@@ -145,7 +145,9 @@ describe("statement import API", () => {
     const rows2 = (await request(ctx.app).get(`/api/statements/${again.body.id}/review`).set(ctx.auth)).body as { id: string; description: string; duplicate: string; source: string; proposed: { category: string } }[];
     const sal = rows2.find((x) => x.description.includes("SALARY"))!;
     expect(sal.duplicate).toBe("exact");
-    expect(rows2.filter((x) => x.description.includes("CHAI")).every((x) => x.source === "rule" && x.proposed.category === "Snacks")).toBe(true);
+    const chai = rows2.filter((x) => x.description.includes("CHAI"));
+    expect(chai.map((x) => x.duplicate)).toEqual(["exact", "none"]);
+    expect(chai.filter((x) => x.duplicate === "none").every((x) => x.source === "rule" && x.proposed.category === "Snacks")).toBe(true);
     const r = await request(ctx.app).post(`/api/statements/${again.body.id}/review`).set(ctx.auth).send({ decisions: [{ id: sal.id, decision: "accept" }] });
     expect(r.status).toBe(422);
   });
