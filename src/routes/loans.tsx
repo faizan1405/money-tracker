@@ -126,7 +126,7 @@ function PayDialog({ due, onClose, onSave }: { due: Due | null; onClose: () => v
         <div className="space-y-3">
           <div><Label>Amount (₹)</Label><Input className="mt-1.5" inputMode="decimal" value={amt} onChange={(e) => setAmt(e.target.value)} /></div>
           {due?.direction === "i_owe" && <div><Label>Interest portion (₹)</Label><Input className="mt-1.5" inputMode="decimal" value={interest} onChange={(e) => setInterest(e.target.value)} /><p className="mt-1 text-xs text-muted-foreground">Only this part is counted as an expense.</p></div>}
-          <Button className="w-full" onClick={() => { const a = Number(amt); if (!a) return toast.error("Enter an amount"); onSave(a, Number(interest) || 0); setAmt(""); setInterest(""); }}>Save payment</Button>
+          <Button className="w-full" onClick={() => { const a = Number(amt); if (!a) { toast.error("Enter an amount"); return; } onSave(a, Number(interest) || 0); setAmt(""); setInterest(""); }}>Save payment</Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -149,7 +149,7 @@ function NewDueDialog({ open, onClose, onSave }: { open: boolean; onClose: () =>
           <div><Label>Workspace</Label><Select value={d.workspace} onValueChange={(v) => setD({ ...d, workspace: v as Due["workspace"] })}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="personal">Personal</SelectItem><SelectItem value="scaleflow">Scale Flow</SelectItem></SelectContent></Select></div>
         </div>
         <Button onClick={() => {
-          if (!d.party || !d.principal || !d.dueDate) return toast.error("Fill in name, amount and due date");
+          if (!d.party || !d.principal || !d.dueDate) { toast.error("Fill in name, amount and due date"); return; }
           onSave({ ...(d as Due), id: `d${Date.now()}`, payments: [] });
           setD({ direction: "i_owe", kind: "personal", workspace: "personal" });
         }}>Save</Button>

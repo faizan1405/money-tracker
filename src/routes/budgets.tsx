@@ -69,7 +69,7 @@ function Budgets() {
           </ul>
           <form className="mt-4 flex flex-wrap gap-2" onSubmit={(e) => {
             e.preventDefault();
-            if (!cat || !Number(limit)) return toast.error("Choose a category and limit");
+            if (!cat || !Number(limit)) { toast.error("Choose a category and limit"); return; }
             f.update("budgets", [...f.budgets, { id: `b${Date.now()}`, category: cat, limit: Number(limit), workspace: BUSINESS_CATEGORIES.includes(cat) ? "scaleflow" : "personal" }]);
             setCat(""); setLimit(""); toast.success("Budget added");
           }}>

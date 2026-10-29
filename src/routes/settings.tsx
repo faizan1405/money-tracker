@@ -93,7 +93,7 @@ function Settings() {
             </ul>
             <form className="mt-4 flex flex-wrap gap-2" onSubmit={(e) => {
               e.preventDefault();
-              if (!match.trim() || !cat) return toast.error("Enter match text and a category");
+              if (!match.trim() || !cat) { toast.error("Enter match text and a category"); return; }
               const ws: WorkspaceId = BUSINESS_CATEGORIES.includes(cat) ? "scaleflow" : "personal";
               f.update("rules", [...f.rules, { id: `ru${Date.now()}`, match: match.trim().toUpperCase(), category: cat, workspace: ws, priority: f.rules.length + 1, enabled: true }]);
               setMatch(""); setCat(""); toast.success("Rule added");

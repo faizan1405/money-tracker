@@ -27,8 +27,8 @@ export interface Account {
   kind: AccountKind;
   workspace: WorkspaceId;
   openingBalance: number; // for credit cards: negative = amount owed
-  last4?: string;
-  creditLimit?: number;
+  last4?: string | undefined;
+  creditLimit?: number | undefined;
   reconciled: "reconciled" | "pending" | "never";
 }
 
@@ -37,21 +37,21 @@ export interface Transaction {
   date: string; // ISO
   type: TxnType;
   amount: number; // always positive; for adjustment, sign stored in adjustmentSign
-  adjustmentSign?: 1 | -1;
+  adjustmentSign?: 1 | -1 | undefined;
   description: string;
   merchant: string;
   category: string;
-  subcategory?: string;
+  subcategory?: string | undefined;
   workspace: WorkspaceId;
   accountId: string;
-  toAccountId?: string; // transfers & cc payments
-  interest?: number; // loan_repayment: part of amount that is interest (an expense)
-  client?: string;
-  project?: string;
-  notes?: string;
+  toAccountId?: string | undefined; // transfers & cc payments
+  interest?: number | undefined; // loan_repayment: part of amount that is interest (an expense)
+  client?: string | undefined;
+  project?: string | undefined;
+  notes?: string | undefined;
   status: "cleared" | "pending";
-  recurring?: boolean;
-  source?: "manual" | "statement" | "demo";
+  recurring?: boolean | undefined;
+  source?: "manual" | "statement" | "demo" | undefined;
 }
 
 export interface Due {
@@ -62,10 +62,10 @@ export interface Due {
   principal: number;
   outstanding: number;
   dueDate: string;
-  interestRate?: number;
-  emi?: number;
+  interestRate?: number | undefined;
+  emi?: number | undefined;
   workspace: WorkspaceId;
-  notes?: string;
+  notes?: string | undefined;
   payments: { date: string; amount: number; interest?: number }[];
 }
 

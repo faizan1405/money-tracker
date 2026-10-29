@@ -84,9 +84,9 @@ export function AddTransactionDialog() {
   };
 
   const save = () => {
-    if (!f.amount || f.amount <= 0) return toast.error("Enter an amount greater than zero");
-    if (!f.merchant?.trim()) return toast.error("Add a merchant or recipient");
-    if (twoAccounts && (!f.toAccountId || f.toAccountId === f.accountId)) return toast.error("Choose two different accounts");
+    if (!f.amount || f.amount <= 0) { toast.error("Enter an amount greater than zero"); return; }
+    if (!f.merchant?.trim()) { toast.error("Add a merchant or recipient"); return; }
+    if (twoAccounts && (!f.toAccountId || f.toAccountId === f.accountId)) { toast.error("Choose two different accounts"); return; }
     const t = {
       ...f,
       description: f.description || f.merchant,
@@ -120,7 +120,7 @@ export function AddTransactionDialog() {
                 onKeyDown={(e) => e.key === "Enter" && document.getElementById("quick-btn")?.click()} />
               <Button id="quick-btn" variant="secondary" onClick={() => {
                 const p = parseQuick(quick);
-                if (!p) return toast.error("Couldn't find an amount in that text");
+                if (!p) { toast.error("Couldn't find an amount in that text"); return; }
                 setF((s) => ({ ...s, ...p }));
                 toast("Fields filled — review before saving");
               }}><Wand2 className="size-4" />Fill</Button>
@@ -134,13 +134,13 @@ export function AddTransactionDialog() {
             <Input inputMode="decimal" className="num mt-1.5 h-14 text-2xl font-semibold" placeholder="0" value={f.amount ?? ""} onChange={(e) => set("amount", Number(e.target.value.replace(/[^\d.]/g, "")) || (undefined as unknown as number))} />
           </div>
           <Field label="Type">
-            <Select value={f.type} onValueChange={(v) => onType(v as TxnType)}>
+            <Select value={f.type ?? ""} onValueChange={(v) => onType(v as TxnType)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>{TYPES.map((t) => <SelectItem key={t} value={t}>{TYPE_LABEL[t]}</SelectItem>)}</SelectContent>
             </Select>
           </Field>
           <Field label="Workspace">
-            <Select value={f.workspace} onValueChange={(v) => setF((s) => ({ ...s, workspace: v as WorkspaceId }))}>
+            <Select value={f.workspace ?? ""} onValueChange={(v) => setF((s) => ({ ...s, workspace: v as WorkspaceId }))}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="personal">Personal</SelectItem><SelectItem value="scaleflow">Business: Scale Flow</SelectItem></SelectContent>
             </Select>
@@ -160,7 +160,7 @@ export function AddTransactionDialog() {
             <Input value={f.merchant ?? ""} onChange={(e) => set("merchant", e.target.value)} placeholder="Swiggy, Hostinger…" />
           </Field>
           <Field label="Category">
-            <Select value={f.category} onValueChange={(v) => set("category", v)}>
+            <Select value={f.category ?? ""} onValueChange={(v) => set("category", v)}>
               <SelectTrigger><SelectValue placeholder="Choose" /></SelectTrigger>
               <SelectContent>{[...new Set([...(f.category ? [f.category] : []), ...cats])].map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
             </Select>
@@ -169,14 +169,14 @@ export function AddTransactionDialog() {
             <Input value={f.subcategory ?? ""} onChange={(e) => set("subcategory", e.target.value)} />
           </Field>
           <Field label={twoAccounts ? "From account" : "Account"}>
-            <Select value={f.accountId} onValueChange={(v) => set("accountId", v)}>
+            <Select value={f.accountId ?? ""} onValueChange={(v) => set("accountId", v)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>{accounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
             </Select>
           </Field>
           {twoAccounts && (
             <Field label={f.type === "cc_payment" ? "Card being paid" : "To account"}>
-              <Select value={f.toAccountId} onValueChange={(v) => set("toAccountId", v)}>
+              <Select value={f.toAccountId ?? ""} onValueChange={(v) => set("toAccountId", v)}>
                 <SelectTrigger><SelectValue placeholder="Choose" /></SelectTrigger>
                 <SelectContent>{accounts.filter((a) => (f.type === "cc_payment" ? a.kind === "credit_card" : a.id !== f.accountId)).map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
               </Select>
@@ -199,7 +199,7 @@ export function AddTransactionDialog() {
             </Field>
           )}
           <Field label="Status">
-            <Select value={f.status} onValueChange={(v) => set("status", v as Transaction["status"])}>
+            <Select value={f.status ?? ""} onValueChange={(v) => set("status", v as Transaction["status"])}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="cleared">Cleared</SelectItem><SelectItem value="pending">Pending</SelectItem></SelectContent>
             </Select>
