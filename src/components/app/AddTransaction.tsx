@@ -268,7 +268,7 @@ export function AddTransactionDialog() {
           ) : <span />}
           <div className="flex flex-1 justify-end gap-2">
             <Button variant="outline" onClick={closeAdd}>Cancel</Button>
-            <Button onClick={save} className="min-w-32 flex-1 sm:flex-none">{editing ? "Save changes" : "Add transaction"}</Button>
+            <Button onClick={save} disabled={busy} className="min-w-32 flex-1 sm:flex-none">{busy ? "Saving…" : editing ? "Save changes" : "Add transaction"}</Button>
           </div>
         </div>
       </DialogContent>
