@@ -146,3 +146,21 @@ export function toCSV(txns: Transaction[], accounts: Account[]) {
   );
   return [head.join(","), ...lines].join("\n");
 }
+
+/** True when the ledger already has a transaction with the same day, amount, merchant and account. */
+export function isDuplicate(t: Omit<Transaction, "id">, ledger: Transaction[]) {
+  const day = t.date.slice(0, 10);
+  const m = t.merchant.trim().toLowerCase();
+  return ledger.some((x) => x.date.slice(0, 10) === day && x.amount === t.amount && x.accountId === t.accountId && x.merchant.trim().toLowerCase() === m);
+}
+
+/** Splits incoming rows into new ones and ones already in the ledger (also de-duplicates within the batch). */
+export function dedupe(incoming: Omit<Transaction, "id">[], ledger: Transaction[]) {
+  const fresh: Omit<Transaction, "id">[] = [];
+  let skipped = 0;
+  for (const t of incoming) {
+    if (isDuplicate(t, ledger) || isDuplicate(t, fresh as Transaction[])) skipped++;
+    else fresh.push(t);
+  }
+  return { fresh, skipped };
+}

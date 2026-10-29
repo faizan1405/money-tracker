@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useFinance } from "@/lib/finance/store";
+import { dedupe } from "@/lib/finance/calc";
 import { buildSampleStatement, BUSINESS_CATEGORIES, INCOME_CATEGORIES, PERSONAL_CATEGORIES, SYSTEM_CATEGORIES, type StatementRow } from "@/lib/finance/data";
 import { formatDate, formatINR } from "@/lib/finance/format";
 import type { Transaction } from "@/lib/finance/types";
@@ -73,8 +74,10 @@ function Studio() {
         date: r.date, status: "cleared", source: "statement",
       };
     });
-    f.addTxns(ts);
-    toast.success(`${ts.length} sample transactions added to your ledger`);
+    const { fresh, skipped } = dedupe(ts, f.txns);
+    if (fresh.length) f.addTxns(fresh);
+    if (!fresh.length) toast.error("These transactions are already in your ledger — nothing was added");
+    else toast.success(`${fresh.length} sample transactions added${skipped ? ` · ${skipped} duplicates skipped` : ""}`);
     setRows([]);
     setStep(-1);
     setSel(new Set());
