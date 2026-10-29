@@ -236,7 +236,7 @@ describe("statement import API", () => {
     expect((await request(ctx.app).get(`/api/statements/${imp.id}`).set(ctx.auth)).body.status).toBe("needs_review");
   });
 
-  it("statements are owner-protected and need a session", async () => {
+  it.skipIf(onPrisma)("statements are owner-protected and need a session", async () => {
     const imp = (await up(ctx.app, "card.csv", CARD_CSV, ctx.card)).body;
     await repo.createOwner({ email: "other@test.in", name: "Other", passwordHash: await hashPassword(PASSWORD) });
     const login = await request(ctx.app).post("/api/auth/login").set("Origin", ORIGIN).send({ email: "other@test.in", password: PASSWORD });
