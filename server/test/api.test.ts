@@ -222,3 +222,24 @@ describe("dashboard + other endpoints", () => {
     expect(r.status).toBe(409);
   });
 });
+
+describe("collections", () => {
+  it("loans, budgets, goals, recurring and rules save and read back exactly", async () => {
+    const { app, auth } = await setup(await makeRepo());
+    const dues = [{ id: "x", direction: "i_owe", kind: "loan", party: "SBI", principal: 500000, outstanding: 412345.67, dueDate: "2026-11-05", interestRate: 9.25, emi: 10432.1, workspace: "personal", payments: [{ date: "2026-10-05", amount: 10432.1, interest: 3100.55 }] }];
+    const budgets = [{ id: "b", category: "Food", workspace: "personal", limit: 8000.5 }];
+    const rules = [{ id: "r", match: "swiggy", category: "Food", workspace: "personal", priority: 1, enabled: true }];
+    for (const [k, items] of [["dues", dues], ["budgets", budgets], ["rules", rules], ["goals", [{ id: "g", name: "Car", target: 800000, saved: 1234.5, deadline: "2027-12-31" }]], ["recurring", [{ id: "s", name: "Netflix", amount: 649, category: "Subscriptions", workspace: "personal", nextDate: "2026-11-01", cadence: "monthly" }]], ["customCategories", ["Pets"]]] as const) {
+      expect((await request(app).put(`/api/collections/${k}`).set(auth).send({ items })).status).toBe(200);
+    }
+    const b = (await request(app).get("/api/bootstrap").set(auth)).body;
+    expect(b.dues[0]).toMatchObject({ party: "SBI", outstanding: 412345.67, interestRate: 9.25, emi: 10432.1 });
+    expect(b.dues[0].payments[0]).toMatchObject({ amount: 10432.1, interest: 3100.55 });
+    expect(b.budgets[0].limit).toBe(8000.5);
+    expect(b.goals[0].saved).toBe(1234.5);
+    expect(b.recurring[0].amount).toBe(649);
+    expect(b.rules[0].match).toBe("swiggy");
+    expect(b.customCategories).toEqual(["Pets"]);
+    expect((await request(app).put("/api/collections/budgets").set(auth).send({ items: [{ id: "b", category: "Food", workspace: "personal", limit: 1.234 }] })).status).toBe(422);
+  });
+});
