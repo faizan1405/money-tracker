@@ -60,6 +60,13 @@ export class OpenRouterClient {
   guard: BudgetGuard | null = null;
   constructor(public cfg: OpenRouterConfig, private fetchImpl: FetchLike = fetch as unknown as FetchLike, private log: AiLogger = consoleLogger, private sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))) {}
 
+  /** Same transport, logger and budget guard with different limits (e.g. a shorter timeout for chat). */
+  withOptions(patch: Partial<OpenRouterConfig>) {
+    const c = new OpenRouterClient({ ...this.cfg, ...patch }, this.fetchImpl, this.log, this.sleep);
+    c.guard = this.guard;
+    return c;
+  }
+
   /** Cost already spent today on this server process (best effort; resets on restart). */
   spent() { this.rollDay(); return this.spentToday; }
   private rollDay() { const d = new Date().toISOString().slice(0, 10); if (d !== this.day) { this.day = d; this.spentToday = 0; } }
